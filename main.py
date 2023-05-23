@@ -3,6 +3,7 @@ import json
 import time
 import re
 import itertools
+import bs_interface as parser
 
 from bs4 import BeautifulSoup
 from pathlib import Path
@@ -12,10 +13,11 @@ from argparse import ArgumentParser
 YELLOW_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Red-Notices'
 RED_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices'
 
-notices = {
-    'yellow_pages': requests.get(YELLOW_PAGES_URL),
-    'red_pages': requests.get(RED_PAGES_URL)
+bs4_pages = {
+    'red': parser.IpNotice(url=RED_PAGES_URL),
+    'yellow': parser.IpNotice(url=YELLOW_PAGES_URL)
 }
 
-for key, value in notices.items():
-    print(key, value.status_code)
+
+for page in bs4_pages.values():
+    page.status()
