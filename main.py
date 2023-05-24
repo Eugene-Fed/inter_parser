@@ -3,8 +3,8 @@ import json
 import time
 import re
 import itertools
-import bs_interface as parser
 
+from bs_interface import IpNotice
 from bs4 import BeautifulSoup
 from pathlib import Path
 from datetime import datetime
@@ -14,10 +14,11 @@ YELLOW_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Red-Notic
 RED_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices'
 
 bs4_pages = {
-    'red': parser.IpNotice(url=RED_PAGES_URL),
-    'yellow': parser.IpNotice(url=YELLOW_PAGES_URL)
+    'red': IpNotice(url=RED_PAGES_URL),
+    'yellow': IpNotice(url=YELLOW_PAGES_URL)
 }
 
 
-for page in bs4_pages.values():
-    page.status()
+for key, value in bs4_pages.items():
+    print(f'Page `{key}` get_status: {value.get_status()}')
+    print(value())
