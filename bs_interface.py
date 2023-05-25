@@ -4,7 +4,7 @@ import re
 from bs4 import BeautifulSoup
 
 
-class IpNotice:
+class NoticePage:
     """
     Класс, определяющий все базовые данные поисковой страницы. Здесь хранятся значения фильтров, по которым
     мы будем формировать запросы по API
@@ -14,6 +14,7 @@ class IpNotice:
     genders = {}
     request_page = None
     parser_page = None
+    total = 0
 
     def __init__(self, url: str):
         """
@@ -28,13 +29,12 @@ class IpNotice:
             self.parser_page = BeautifulSoup(self.request_page.text, 'html.parser')
             self.nationalities = self.get_nationalities(page=self.parser_page)
             self.genders = self.get_genders(page=self.parser_page)
-        else:
-            self.parser_page = None
+            self.total = self.get_total(page=self.parser_page)
 
     def __call__(self):
         if self.parser_page:
 
-            return self.genders
+            return len(self.nationalities)
 
         else:
             return
@@ -71,3 +71,19 @@ class IpNotice:
             if radio.attrs['value']:        # Первая кнопка `All` имеет пустое значение атрибута `value`, его пропускаем
                 self.genders[radio.attrs['value']] = page.find('label', attrs={'for': radio.attrs['id']}).string
         return self.genders
+
+    def get_total(self, page: BeautifulSoup) -> int:
+        """
+        Получаем общее количество персон для заданной страницы. Забираем это значения непосредственно из HTML.
+        # TODO - в текущей реализации всегда выдает нулевое значение.
+        # todo - Для получения реального числа необходим отправить запрос с фильтрами на все позиции
+        :param page: Объект страницы.
+        :return: Общее количество персон в поиске.
+        """
+        return int(page.find('strong', id='totalResults').string)
+
+
+class SearchRequest:
+
+    def __init__(self):
+        pass
