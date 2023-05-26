@@ -56,7 +56,7 @@ class NoticePage:
         # TODO - переписать с использованием фильтрующей функции `select.find_all(filter_func)`
         # TODO - переписать с использованием словарного включения. P.S. или оставить как есть =)
         for option in select.find_all('option'):
-            if option.attrs:        # Первый элемент пустой, поэтому его пропускаем. Нужен лишь список ID стран
+            if option.attrs:  # Первый элемент пустой, поэтому его пропускаем. Нужен лишь список ID стран
                 self.nationalities[option.attrs['value']] = option.string
         return self.nationalities
 
@@ -69,7 +69,7 @@ class NoticePage:
         radios = page.find_all('input', attrs={'type': 'radio', 'name': 'sexId'})
 
         for radio in radios:
-            if radio.attrs['value']:        # Первая кнопка `All` имеет пустое значение атрибута `value`, его пропускаем
+            if radio.attrs['value']:  # Первая кнопка `All` имеет пустое значение атрибута `value`, его пропускаем
                 self.genders[radio.attrs['value']] = page.find('label', attrs={'for': radio.attrs['id']}).string
         return self.genders
 
@@ -82,79 +82,6 @@ class NoticePage:
         :return: Общее количество персон в поиске.
         """
         return int(page.find('strong', id='totalResults').string)
-
-
-class SearchRequest:
-    url = ''
-    nation = ''
-    gender = ''
-    notice_type = ''
-    age = 0
-    total = 0
-    responses = []
-    keywords = []
-
-    def __init__(self, url='', nation='', gender='', notice_type='', age=0, keywords=[]):
-        """
-
-        :param url: API для запроса: `https://ws-public.interpol.int/notices/v1/`
-        :param nation: Двузначный идентификатор гражданства
-        :param gender: Пол: `M`, `F`, `U` - undefined
-        :param notice_type: Тип запрашиваемого поиска: `red` или `yellow`
-        :param age:
-        """
-        self.url = url
-        self.nation = nation
-        self.gender = gender
-        self.notice_type = notice_type
-        self.age = age
-        self.keywords = keywords
-
-    def __call__(self) -> list:
-        # Можно добавить альтернативный ввод `keywords` как параметра при необходимости кастомизации вызова
-        response_json = self.get_response(url=self.url, notice_type=self.notice_type, nation=self.nation,
-                                          gender=self.gender, age=self.age)
-        if response_json:       # Если ответ не пуст (статус запроса `200`, и количество результатов больше `0`
-            if int(response_json['total']) < 160:   # Если при этом фильтрация сработала отлично
-                self.responses.append(response_json)    # Тогда добавляем `json` результата результирующий список
-            else:   # Если же после фильтрации количество результатов равно предельному `160`
-                for keyword in self.keywords:       # Тогда добавляем к запросу вариации ключевых слов
-                    self.responses.append(self.get_response(url=self.url, notice_type=self.notice_type,
-                                                            nation=self.nation, gender=self.gender, age=self.age,
-                                                            keyword=keyword))
-
-        return self.responses
-
-    def get_response(self, url, notice_type, nation, gender, age, keyword='') -> json:
-        request = f'{url}{notice_type}?' \
-                  f'nationality={nation}&' \
-                  f'sexId={gender}&' \
-                  f'ageMin={age}&ageMax={age}&freeText={keyword}'
-        response = requests.get(url=request)
-
-        if response.status_code == 200:     # Для простоты игнорируем другие статусы. По-уму их тоже нужно обработать
-            output_json = response.json()
-            if output_json and int(output_json['total']) > 0:       # Проверяем что json не пуст и `total` больше `0`
-                return output_json
-        else:
-            return None
-
-        """"
-            total = int(output_json['total'])
-
-            if total > 0:           # Если количество результатов в ответе равно 0, то возвращаем пустой список
-                if total == 160 and keywords:
-                    # Если количество результатов равно 160, значит в фильтре слишком много результатов
-                    # Нужно попробовать добавить различные ключевики к запросу, чтобы собрать максимальное кол-во персон
-                    for key in keywords:
-                        # Добавляем рекурсию глубиной в 1, чтобы пройтись по всем элементам списка ключевиков
-                        return self.get_response(url=url, notice_type=notice_type,
-                                                  nation=nation, ender=gender, age=age, keyword=key)
-                else:
-                    responses.append(output_json)
-
-        return responses
-        """
 
 
 class Person:
