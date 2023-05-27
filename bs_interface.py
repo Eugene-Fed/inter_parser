@@ -87,4 +87,10 @@ class NoticePage:
 
 
 class Person:
-    pass
+    person_detail_url = ''
+    images_url = ''
+    person_detail_data = ''
+    main_image_data = None
+
+    def __init__(self):
+        pass

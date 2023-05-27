@@ -5,6 +5,7 @@ import json
 import time
 import re
 import itertools
+import imghdr
 
 from bs_interface import NoticePage
 from argparse import ArgumentParser
