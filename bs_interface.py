@@ -87,10 +87,35 @@ class NoticePage:
 
 
 class Person:
-    person_detail_url = ''
-    images_url = ''
-    person_detail_data = ''
-    main_image_data = None
+    person_id = ''              # Идентификатор Персоны формата `ГОД_ID`
+    detail_url = ''             # Ссылка на подробную страницу Персоны
+    images_url = ''             # Запрос на получение ссылок всех фото Персоны
+    detail_data = {}            # json (словарь) с подробными данными Персоны
+    images = {}                 # Словарь {`picture_id`: `image_raw_data`}, в котором хранятся все фото (без миниатюры).
 
-    def __init__(self):
-        pass
+    def __init__(self, person_detail_url: str, images_url: str):
+        """
+        При инициализации или вызове можно добавить флаги `json_data = False, img = False`. Это упрощает код,
+        но считается "моветоном" среди некоторых ООП-шников. На Плюсах это норм, а в Питоне считается хорошим тоном
+        обрабатывать полученные объекты на основе их типов, а не вспомогательных настроечных флагов.
+        В текущей реализации нет смысла создавать новый экземпляр класса для обработки каждой Персоны,
+        поэтому просто обнуляем словарь `images`, вместо вызова функции `__new__(cls):`.
+        :param person_detail_url: Ссылка на детальную страницу Персоны.
+        :param images_url: Ссылка на запрос фотографий Персоны.
+        """
+        self.images = {}
+        self.detail_url = person_detail_url
+        self.images_url = images_url
+        # TODO - перехватить все статусы реквестов кроме 200-го. Вероятно проще написать универсальный класс обработки
+        self.detail_data = requests.get(person_detail_url).json()
+        self.person_id = self.detail_data['entity_id'].replace('/', '-')    # Заменяем `/` на `-` для корректного пути
+
+        # Получаем список ID и фотографии персоны
+        images_json = requests.get(images_url).json()
+        # TODO - сделать проверку на пустой ответ или коды ошибок
+        for item in images_json['_embedded']['images']:
+            self.images[item['picture_id']] = requests.get(item['_links']['self']['href']).content
+
+    def __call__(self):
+        # При вызове можно сразу же и сохранять файлы, либо прописать это отдельным методом. Либо оставить как есть =)
+        return self.detail_data, self.images

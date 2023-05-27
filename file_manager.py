@@ -5,8 +5,8 @@ import sys
 import imghdr
 from pathlib import Path
 
-settings_file = Path('settings.json')
-result_dir = Path('result')
+SETTINGS_FILE = Path('settings.json')
+RESULT_DIR = Path('result')   # TODO - забирать путь к выгрузке из файла настроек. Использовать дефолт, если недоступно.
 
 
 def load_json(file_path: Path) -> json:
@@ -46,19 +46,22 @@ def save_file(file_path: Path, file_data=None) -> None:
             json.dump(file_data, fp, indent=4, ensure_ascii=False)
 
     else:
+        '''
         img_suffix = imghdr.what(file_data)     # Получаем тип изображения из данных через модуль `imghdr`
         if not img_suffix:
             img_suffix = 'jpeg'  # Если модуль не смог получить тип изображения, сохраняем его как `jpeg`
-        file_path.with_suffix(img_suffix)       # Добавляем к пути файла расширение изображения
-        with file_path.open("wb") as fp:
-            fp.write(file_data.content)
+        '''
+        img_suffix = r'.jpeg'
+        file_path = file_path.with_suffix(img_suffix)       # Добавляем к пути файла расширение изображения
+        with file_path.open('wb') as fp:
+            fp.write(file_data)
 
     print(f'File `{str(file_path)}` saved.')
     pass
 
 
 if __name__ == '__main__':
-    settings = load_json(file_path=settings_file)
+    settings = load_json(file_path=SETTINGS_FILE)
     print(json.dumps(settings, indent=4))
 else:
     pass

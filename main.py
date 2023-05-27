@@ -6,8 +6,9 @@ import time
 import re
 import itertools
 import imghdr
+import file_manager as fm
 
-from bs_interface import NoticePage
+from bs_interface import NoticePage, Person
 from argparse import ArgumentParser
 from pathlib import Path
 from datetime import datetime
@@ -16,17 +17,18 @@ from argparse import ArgumentParser
 YELLOW_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Red-Notices'
 RED_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices'
 REQUEST_URL = r'https://ws-public.interpol.int/notices/v1/'
-NATIONS = ['AF']      # Фильтр искомых национальностей. Если пуст - собираем все возможные
-GENDERS = ['F', 'M']
-MIN_AGE = 15             # Фильтр возраста в диапазоне 0..120
-MAX_AGE = 70           # TODO - принимать как параметр при запуске кода
+NATIONS = []      # Фильтр искомых национальностей. Если пуст - собираем все возможные
+GENDERS = []
+MIN_AGE = 0             # Фильтр возраста в диапазоне 0..120
+MAX_AGE = 120           # TODO - принимать как параметр при запуске кода
 NOTICES_LIMIT = 160     # Максимальное количество позиций, которые выдает сайт по отдельному запросу
+# Используем ключевые запросы для уточнения выдачи в том случае, когда по фильтру возвращается более 159 результатов
+# Используем `нормализованные` ключи, т.к. они прекрасно работают
 KEYWORDS = {'red': ['armed', 'ammunition', 'crime', 'drug', 'encroachment', 'extremist', 'explosive',
                     'hooliganism', 'illegal', 'injury', 'federal', 'firearms', 'murder', 'viol', 'death', 'sexual',
                     'passport', 'stealing', 'terror', 'narcotic', 'weapon', 'rape', 'assault',
                     'infanticidio', 'femicidio', 'homicide', 'extorsion', 'criminal', 'sabotag', 'blackmail'],
             'yellow': []}     # Для Жёлтых - поле ключевиков не дает результатов, т.к. нет описаний
-# Используем ключевые запросы для уточнения выдачи в том случае, когда по фильтру возвращается более 159 результатов
 
 
 def get_notices(url='', notice_type='', nation='', gender='', age='', keyword='', request='') -> (dict, int):
@@ -93,7 +95,7 @@ if __name__ == '__main__':
         """Цикл по всем заданным поисковым страницам: красные и желтые"""
         print(f'Page `{page_id}` get_status: {page_object.get_status()}')
 
-        # result_notices = {}  # Тут копятся краткие сведения всех найденных персон для текущего запроса.
+        result_notices = {}  # Тут копятся краткие сведения всех найденных персон для текущего запроса.
         # Ключ - ID уведомления, значение - json
 
         # Если фильтры заданы при запуске - используем их. Иначе, используем все доступные варианты со страницы
@@ -102,7 +104,10 @@ if __name__ == '__main__':
         genders = GENDERS if GENDERS else page_object.genders
 
         for nation, gender, age in itertools.product(nations, genders, range(MIN_AGE, MAX_AGE + 1)):
-            result_notices = {}  # Тут копятся краткие сведения всех найденных персон для текущего запроса.
+            # Цикл по всем вариациям фильтров в заданных пределах. Сохраняем результаты в промежуточный словарь.
+            # Это позволит избавиться от неизбежно возникающих дублей, связанных с соответствием одной персоны
+            # нескольким словарным ключам (где они используются для поиска).
+            # result_notices = {}  # Тут копятся краткие сведения всех найденных персон для текущего запроса.
             # Итерируемся по всем комбинациям фильтров в пределах заданного диапазона возрастов
             if nation not in page_object.nationalities or gender not in page_object.genders:
                 # "Защита от дурака" - если задано несуществующее значение Гендера или Нации, то пропускаем итерацию
@@ -128,9 +133,21 @@ if __name__ == '__main__':
             print(f'Total notices in Result: {len(result_notices)}')
             # search_results[(page_id, nation, gender, age)] = SearchResponse(url=REQUEST_URL, notice_type=page_id,
             #                                                                nation=nation, gender=gender, age=age)()
-        result = json.dumps(result_notices, indent=4)
-        print(result)
-        print(f'Total notices in Response: {notices_total}')
-        print(f'Total notices in Result: {len(result_notices)}')
-    # for value in search_results.values():
-    #     print(json.dumps(value, indent=2))
+        # result = json.dumps(result_notices, indent=4)
+        print(json.dumps(result_notices, indent=4))
+        # print(f'Total notices in Response: {notices_total}')
+        # print(f'Total notices in Result: {len(result_notices)}')
+
+        for notice_id, notice_preview_json in result_notices.items():
+            # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
+            person_detail_url = notice_preview_json['_links']['self']['href']
+            images_url = notice_preview_json['_links']['images']['href']
+
+            person = Person(person_detail_url=person_detail_url, images_url=images_url)
+            # Генерим ссылку для выгрузки данных формата 'result/red/2023-8402/detail.json'
+            person_result_path = Path(fm.RESULT_DIR, page_id, person.person_id)
+            fm.save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person.detail_data)
+
+            # Выгружаем все фото в папку Персоны
+            for image_name, image_raw in person.images.items():
+                fm.save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
