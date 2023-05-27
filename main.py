@@ -14,14 +14,15 @@ YELLOW_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Red-Notic
 RED_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices'
 REQUEST_URL = r'https://ws-public.interpol.int/notices/v1/'
 NATIONS = ['AF']      # Фильтр искомых национальностей. Если пуст - собираем все возможные
-GENDERS = []
-MIN_AGE = 5             # Фильтр возраста в диапазоне 0..120
-MAX_AGE = 90           # TODO - принимать как параметр при запуске кода
+GENDERS = ['F', 'M']
+MIN_AGE = 15             # Фильтр возраста в диапазоне 0..120
+MAX_AGE = 70           # TODO - принимать как параметр при запуске кода
 NOTICES_LIMIT = 160     # Максимальное количество позиций, которые выдает сайт по отдельному запросу
-KEYWORDS = {'red': ['armed', 'ammunition', 'crime', 'crimes', 'drug', 'drugs', 'encroachment', 'extremist', 'explosive',
-                    'hooliganism', 'illegal', 'injury', 'federal', 'firearms', 'murder',
-                    'passport', 'stealing', 'terrorist'],
-            'yellow': ['birthmark']}
+KEYWORDS = {'red': ['armed', 'ammunition', 'crime', 'drug', 'encroachment', 'extremist', 'explosive',
+                    'hooliganism', 'illegal', 'injury', 'federal', 'firearms', 'murder', 'viol', 'death', 'sexual',
+                    'passport', 'stealing', 'terror', 'narcotic', 'weapon', 'rape', 'assault',
+                    'infanticidio', 'femicidio', 'homicide', 'extorsion', 'criminal', 'sabotag', 'blackmail'],
+            'yellow': []}     # Для Жёлтых - поле ключевиков не дает результатов, т.к. нет описаний
 # Используем ключевые запросы для уточнения выдачи в том случае, когда по фильтру возвращается более 159 результатов
 
 
@@ -125,7 +126,7 @@ if __name__ == '__main__':
             # search_results[(page_id, nation, gender, age)] = SearchResponse(url=REQUEST_URL, notice_type=page_id,
             #                                                                nation=nation, gender=gender, age=age)()
         result = json.dumps(result_notices, indent=4)
-        # print(result)
+        print(result)
         print(f'Total notices in Response: {notices_total}')
         print(f'Total notices in Result: {len(result_notices)}')
     # for value in search_results.values():
