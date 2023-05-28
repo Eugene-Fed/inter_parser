@@ -18,7 +18,7 @@ YELLOW_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Red-Notic
 RED_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices'
 REQUEST_URL = r'https://ws-public.interpol.int/notices/v1/'
 NATIONS = []      # Фильтр искомых национальностей. Если пуст - собираем все возможные
-GENDERS = []
+GENDERS = ['M', 'F']
 MIN_AGE = 0             # Фильтр возраста в диапазоне 0..120
 MAX_AGE = 120           # TODO - принимать как параметр при запуске кода
 NOTICES_LIMIT = 160     # Максимальное количество позиций, которые выдает сайт по отдельному запросу
@@ -28,7 +28,7 @@ KEYWORDS = {'red': ['armed', 'ammunition', 'crime', 'drug', 'encroachment', 'ext
                     'hooliganism', 'illegal', 'injury', 'federal', 'firearms', 'murder', 'viol', 'death', 'sexual',
                     'passport', 'stealing', 'terror', 'narcotic', 'weapon', 'rape', 'assault',
                     'infanticidio', 'femicidio', 'homicide', 'extorsion', 'criminal', 'sabotag', 'blackmail'],
-            'yellow': []}     # Для Жёлтых - поле ключевиков не дает результатов, т.к. нет описаний
+            'yellow': []}     # Для Жёлтых страниц - поле ключевиков не дает результатов на сайте, т.к. нет описаний
 
 
 def get_notices(url='', notice_type='', nation='', gender='', age='', keyword='', request='') -> (dict, int):
