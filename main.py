@@ -2,35 +2,11 @@
 
 import requests
 import json
-import time
-import re
 import itertools
-import imghdr
-from file_manager import Settings, load_json, save_file
+from file_manager import Settings, save_file
 
 from bs_interface import NoticePage, Person
-from argparse import ArgumentParser
 from pathlib import Path
-from datetime import datetime
-from argparse import ArgumentParser
-
-# YELLOW_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Red-Notices'
-# RED_PAGES_URL = r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices'
-# REQUEST_URL = r'https://ws-public.interpol.int/notices/v1/'
-# NATIONS = []      # Фильтр искомых национальностей. Если пуст - собираем все возможные
-# GENDERS = ['M', 'F']
-# MIN_AGE = 0             # Фильтр возраста в диапазоне 0..120
-# MAX_AGE = 120           # TODO - принимать как параметр при запуске кода
-# NOTICES_LIMIT = 160     # Максимальное количество позиций, которые выдает сайт по отдельному запросу
-# Используем ключевые запросы для уточнения выдачи в том случае, когда по фильтру возвращается более 159 результатов
-# Используем `нормализованные` ключи, т.к. они прекрасно работают
-'''
-KEYWORDS = {'red': ['armed', 'ammunition', 'crime', 'drug', 'encroachment', 'extremist', 'explosive',
-                    'hooliganism', 'illegal', 'injury', 'federal', 'firearms', 'murder', 'viol', 'death', 'sexual',
-                    'passport', 'stealing', 'terror', 'narcotic', 'weapon', 'rape', 'assault',
-                    'infanticidio', 'femicidio', 'homicide', 'extorsion', 'criminal', 'sabotag', 'blackmail'],
-            'yellow': []}     # Для Жёлтых страниц - поле ключевиков не дает результатов на сайте, т.к. нет описаний
-'''
 
 
 def get_notices(url='', notice_type='', nation='', gender='', age='', keyword='', request='') -> (dict, int):
@@ -61,12 +37,9 @@ def get_notices(url='', notice_type='', nation='', gender='', age='', keyword=''
 
     # TODO - обработать все прочие запросы. Возможно, добавить несколько попыток при получении 4** и 5** ошибок.
     if response.status_code == 200:  # Для простоты игнорируем другие статусы. По-уму их тоже нужно обработать
-        # output_json = response.json()
         output_dict = response.json()   # Метод .json сразу же возвращает Словарь вместо json-Сроки.
 
-        # if output_json and int(output_json['total']) > 0:
         if output_dict and int(output_dict['total']) > 0:  # Проверяем что результат не пуст и `total` больше `0`
-            # output_dict = json.loads(output_json)       # Преобразуем в словарь для доступа к питонским методам
             total = int(output_dict['total'])
 
             for notice in output_dict['_embedded']['notices']:
@@ -75,8 +48,9 @@ def get_notices(url='', notice_type='', nation='', gender='', age='', keyword=''
 
             next_page = output_dict['_links'].get('next')   # default=None. Пытаемся найти ссылку на следующую страницу
             if next_page:
-                # Рекурсивно проходим по всем доступным страницам выдачи, обновляя словарь Превьюшек персон ("Нотисов")
+                # У последней страницы нет ссылки на следующую страницу.
                 # TODO - заменить предварительное сохранение и проверку "истинности" результата на обработку ошибок сети
+                # Рекурсивно проходим по всем доступным страницам выдачи, обновляя словарь Превьюшек персон ("Нотисов")
                 next_page_response, total = get_notices(request=next_page['href'])
                 if next_page_response:       # Если результат не пуст (а он не должен быть пуст, если сеть доступна),
                     notices.update(next_page_response)   # то расширяем словарь "нотисов".
@@ -86,27 +60,33 @@ def get_notices(url='', notice_type='', nation='', gender='', age='', keyword=''
 
 if __name__ == '__main__':
     settings = Settings()
-
+    print(f"Гражданство: {settings.nations}\n"
+          f"Пол: {settings.genders}\n"
+          f"Минимальный возраст: {settings.min_age}\n"
+          f"Максимальный возраст: {settings.max_age}\n")
+    '''
     search_pages = {       # Если появятся еще и `зеленые`, `фиолетовые` и прочие страницы - мы просто добавим их здесь
         'red': NoticePage(url=settings.search_pages_urls['red']),
         'yellow': NoticePage(url=settings.search_pages_urls['yellow'])
     }
-    # search_response = {}  # Тут хранятся результаты запросов по всем вариациям фильтров. Ключ - параметры фильтра
-    # Предварительно сохраняем данные в словарь, чтобы исключить дубли, которые могут образоваться после применения
-    # запросов с ключами. Уже после передаем словарь в функцию, которая вытаскивает более полные сведения по запросу
+    '''
+    # search_pages = {}   # Храним тут ссылки на поисковые страницы (`red`, `yellow`). Легко масштабируется
+    for page_id, page_url in settings.search_pages_urls.items():
+        # search_pages[page_id] = NoticePage(url=page_url)
+        # Фильтр по требуемым поисковым страницам ['red', 'yellow']. Если пуст - фильтр игнорируется.
+        if settings.search_pages_id and page_id not in settings.search_pages_id:
+            # Если параметр заполнен И текущий `page_id` НЕ содержится в параметре - то пропускаем этот `page_id`.
+            continue
+        page_object = NoticePage(url=page_url)
 
-    for page_id, page_object in search_pages.items():
+        # for page_id, page_object in search_pages.items():
         """Цикл по всем заданным поисковым страницам: красные и желтые"""
         print(f'Page `{page_id}` get_status: {page_object.get_status()}')
-
-        # result_notices = {}  # Тут копятся краткие сведения всех найденных персон для текущего запроса.
-        # Ключ - ID уведомления, значение - json
-
-        # TODO - переписать под использование параметров запуска вместо констант
-        # Использовать параметры объекта настроек нагляднее, но перехватить ошибки битого файла настроек проще
-        # с использованием словаря параметров: nations = settings.data.get('nations', page_object.nationalities)
-        # или же перехватывать ошибки с присвоением: nations = getattr(settings, 'nations', page_object.nationalities)
-
+        '''
+        Использовать параметры объекта настроек нагляднее, но перехватить ошибки битого файла настроек проще
+        с использованием словаря параметров: nations = settings.data.get('nations', page_object.nationalities)
+        или же перехватывать ошибки с присвоением: nations = getattr(settings, 'nations', page_object.nationalities)
+        '''
         # Если фильтры заданы при запуске - используем их. Иначе, используем все доступные варианты со страницы.
         # Используем автодополнение IDE-шки вместо `защиты от дурака` в виде проверки на существование параметра.
         nations = settings.nations if settings.nations else page_object.nationalities
@@ -114,9 +94,15 @@ if __name__ == '__main__':
 
         for nation, gender, age in itertools.product(nations, genders,
                                                      range(settings.min_age, settings.max_age+1)):
-            # Цикл по всем вариациям фильтров в заданных пределах. Сохраняем результаты в промежуточный словарь.
-            # Это позволит избавиться от неизбежно возникающих дублей, связанных с соответствием одной персоны
-            # нескольким словарным ключам (где они используются для поиска).
+            '''
+            Цикл по всем вариациям фильтров в заданных пределах. Сохраняем результаты в промежуточный словарь.
+            Это позволит избавиться от неизбежно возникающих дублей, связанных с соответствием одной персоны
+            нескольким словарным ключам (где они используются для поиска).
+            '''
+            # Предварительно сохраняем данные в словарь, чтобы исключить дубли, которые могут образоваться после
+            # применения запросов с ключами. Уже после передаем словарь в функцию, которая вытаскивает
+            # более полные сведения по запросу
+            # Ключ - ID уведомления, значение - json
             result_notices = {}  # Тут копятся краткие сведения всех найденных персон для текущего запроса.
 
             # Итерируемся по всем комбинациям фильтров в пределах заданного диапазона возрастов
@@ -150,8 +136,11 @@ if __name__ == '__main__':
                 images_url = notice_preview_json['_links']['images']['href']
 
                 person = Person(person_detail_url=person_detail_url, images_url=images_url)
-                # Генерим ссылку для выгрузки данных формата 'result/red/2023-8402/detail.json'
-                person_result_path = Path(settings.result_dir, page_id, person.person_id)
+                # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/detail.json'
+                person_result_path = Path(settings.result_dir,
+                                          page_id,
+                                          page_object.nationalities[nation],
+                                          person.person_id)
                 save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person.detail_data)
 
                 # Выгружаем все фото в папку Персоны

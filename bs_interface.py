@@ -1,9 +1,6 @@
 # -*- coding: UTF-8 -*-
 
 import requests
-import re
-import json
-
 from bs4 import BeautifulSoup
 
 
@@ -21,7 +18,7 @@ class NoticePage:
 
     def __init__(self, url: str):
         """
-        При иницализации получаем адрес целевой страницы, с которой необходимо работать в дальнейшем.
+        При инициализации получаем адрес целевой страницы, с которой необходимо работать в дальнейшем.
         :param url: Строка адреса поисковой страницы
         """
         self.url = url
@@ -79,7 +76,7 @@ class NoticePage:
         """
         Получаем общее количество персон для заданной страницы. Забираем это значения непосредственно из HTML.
         # TODO - в текущей реализации всегда выдает нулевое значение.
-        # todo - Для получения реального числа необходим отправить запрос с фильтрами на все позиции
+        # todo - Для получения реального числа необходим отправить запрос с фильтрами на все позиции.
         :param page: Объект страницы.
         :return: Общее количество персон в поиске.
         """
@@ -112,9 +109,13 @@ class Person:
 
         # Получаем список ID и фотографии персоны
         images_json = requests.get(images_url).json()
-        # TODO - сделать проверку на пустой ответ или коды ошибок
-        for item in images_json['_embedded']['images']:
-            self.images[item['picture_id']] = requests.get(item['_links']['self']['href']).content
+
+        try:
+            # TODO - сделать проверку на пустой ответ или коды ошибок
+            for item in images_json['_embedded']['images']:
+                self.images[item['picture_id']] = requests.get(item['_links']['self']['href']).content
+        except Exception as e:
+            print(e)
 
     def __call__(self):
         # При вызове можно сразу же и сохранять файлы, либо прописать это отдельным методом. Либо оставить как есть =)

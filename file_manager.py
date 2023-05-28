@@ -1,21 +1,20 @@
 # -*- coding: UTF-8 -*-
 
 import json
-import sys
 import imghdr
 from pathlib import Path
 
 SETTINGS_FILE = Path('settings.json')
-# RESULT_DIR = Path('result') # TODO - забирать путь к выгрузке из файла настроек. Использовать дефолт, если недоступно.
 SETTINGS_DATA = {
     'result_dir': 'result',
-    "search_pages_urls": {
-        "red": "https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices",
-        "yellow": "https://www.interpol.int/How-we-work/Notices/View-Red-Notices",
+    'search_pages_urls': {
+        'red': r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices',
+        'yellow': r'https://www.interpol.int/How-we-work/Notices/View-Red-Notices'
     },
     'request_url': r'https://ws-public.interpol.int/notices/v1/',
     'nations': [],
-    'genders': ['M', 'F'],     # Можно оставить пустым. Доступные значения: ['M', 'F', 'U']
+    'genders': [],     # Можно оставить пустым. Доступные значения: ['M', 'F', 'U']
+    'search_pages_id': [],   # Фильтр запрашиваемых типов поиска. Равно ключам `search_pages_url`. Если пуст - то все
     'min_age': 0,
     'max_age': 120,
     'notices_limit': 160,
@@ -38,6 +37,7 @@ class Settings:
     request_url = ''
     nations = []
     genders = []
+    search_pages_id = []
     min_age = 0
     max_age = 0
     notices_limit = 0
@@ -68,6 +68,7 @@ class Settings:
         self.request_url = self.data['request_url']
         self.nations = self.data['nations']
         self.genders = self.data['genders']
+        self.search_pages_id = self.data['search_pages_id']
         self.min_age = min(self.data['min_age'], self.data['max_age'])
         self.max_age = max(self.data['min_age'], self.data['max_age'])
         self.notices_limit = self.data['notices_limit']
@@ -107,7 +108,7 @@ def save_file(file_path: Path, file_data=None) -> None:
     :param file_data: Данные файла - json-объект или байтовая строка изображения.
     :return: None
     """
-    # Обходим список родителей в обратном порядке. т.к. чем больше индекс, тем ближе родитель к корневому
+    # Обходим список родителей в обратном порядке, т.к. чем больше индекс, тем ближе родитель к корневому.
     # [0: 'dir_1/dir_2/dir_3'], [1: 'dir_1/dir_2'], [2: 'dir_1']
     for parent in file_path.parents[::-1]:
         # Если папка не существует, то создаем папку
