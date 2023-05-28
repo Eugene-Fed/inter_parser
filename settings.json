@@ -1,0 +1,51 @@
+{
+    "result_dir": "result",
+    "search_pages_urls": {
+        "red": "https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices",
+        "yellow": "https://www.interpol.int/How-we-work/Notices/View-Red-Notices"
+    },
+    "request_url": "https://ws-public.interpol.int/notices/v1/",
+    "nations": ["RU"],
+    "genders": [
+        "M",
+        "F"
+    ],
+    "min_age": 30,
+    "max_age": 32,
+    "notices_limit": 160,
+    "keywords": {
+        "red": [
+            "ammunition",
+            "armed",
+            "assault",
+            "blackmail",
+            "crime",
+            "criminal",
+            "death",
+            "drug",
+            "encroachment",
+            "explosive",
+            "extorsion",
+            "extremist",
+            "federal",
+            "femicidio",
+            "firearms",
+            "homicide",
+            "hooliganism",
+            "illegal",
+            "infanticidio",
+            "injury",
+            "murder",
+            "narcotic",
+            "passport",
+            "rape",
+            "sabotag",
+            "sexual",
+            "stealing",
+            "terror",
+            "viol",
+            "weapon"
+        ],
+        "yellow": []
+    }
+}
