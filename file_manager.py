@@ -6,14 +6,16 @@ import imghdr
 from pathlib import Path
 
 SETTINGS_FILE = Path('settings.json')
-RESULT_DIR = Path('result') # TODO - забирать путь к выгрузке из файла настроек. Использовать дефолт, если недоступно.
+# RESULT_DIR = Path('result') # TODO - забирать путь к выгрузке из файла настроек. Использовать дефолт, если недоступно.
 SETTINGS_DATA = {
     'result_dir': 'result',
-    'yellow_pages_url': r'https://www.interpol.int/How-we-work/Notices/View-Red-Notices',
-    'red_pages_url': r'https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices',
+    "search_pages_urls": {
+        "red": "https://www.interpol.int/How-we-work/Notices/View-Yellow-Notices",
+        "yellow": "https://www.interpol.int/How-we-work/Notices/View-Red-Notices",
+    },
     'request_url': r'https://ws-public.interpol.int/notices/v1/',
     'nations': [],
-    'genders': ['M', 'F', 'U'],     # Можно оставить пустым
+    'genders': ['M', 'F'],     # Можно оставить пустым. Доступные значения: ['M', 'F', 'U']
     'min_age': 0,
     'max_age': 120,
     'notices_limit': 160,
@@ -31,8 +33,17 @@ class Settings:
     # TODO - вместо словаря параметров использовать **kwargs для генерации параметров по содержимому файла настроек
     data = SETTINGS_DATA
     path = SETTINGS_FILE
+    result_dir = Path('')
+    search_pages_urls = {}
+    request_url = ''
+    nations = []
+    genders = []
+    min_age = 0
+    max_age = 0
+    notices_limit = 0
+    keywords = {}
 
-    def __init__(self, settings_path):
+    def __init__(self, settings_path=None):
         """
         Добываем настройки из файла. Если файл отсутствует или недоступен, то он будет создан со значением по-умолчанию.
         :param settings_path: Путь к файлу настроек в формате строки или `Path`. Если не задан или другой объект -
@@ -45,7 +56,22 @@ class Settings:
         elif isinstance(settings_path, Path):
             self.path = settings_path
 
-        self.data = load_json(file_path=self.path, default=self.data)
+        self.data = load_json(file_path=self.path, default=self.data)   # Можем получить параметры через словарь
+        '''
+        # Использовать имена параметров из файла настроек оказалось неудобно, т.к IDE не дает подсказки,
+        # хоть это и само по себе достаточно лаконично/
+        for key, value in self.data:                                    
+           setattr(self, key, value)
+        '''
+        self.result_dir = self.data['result_dir']                       # А можем напрямую по имени параметра
+        self.search_pages_urls = self.data['search_pages_urls']
+        self.request_url = self.data['request_url']
+        self.nations = self.data['nations']
+        self.genders = self.data['genders']
+        self.min_age = self.data['min_age']
+        self.max_age = self.data['max_age']
+        self.notices_limit = self.data['notices_limit']
+        self.keywords = self.data['keywords']
 
     def __call__(self, *args, **kwargs):
         return self.data
@@ -96,9 +122,9 @@ def save_file(file_path: Path, file_data=None) -> None:
         '''
         img_suffix = imghdr.what(file_data)     # Получаем тип изображения из данных через модуль `imghdr`
         if not img_suffix:
-            img_suffix = 'jpeg'  # Если модуль не смог получить тип изображения, сохраняем его как `jpeg`
+            img_suffix = 'jpg'  # Если модуль не смог получить тип изображения, сохраняем его как `jpg`
         '''
-        img_suffix = r'.jpeg'
+        img_suffix = r'.jpg'
         file_path = file_path.with_suffix(img_suffix)       # Добавляем к пути файла расширение изображения
         with file_path.open('wb') as fp:
             fp.write(file_data)
