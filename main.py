@@ -64,23 +64,17 @@ if __name__ == '__main__':
           f"Пол: {settings.genders}\n"
           f"Минимальный возраст: {settings.min_age}\n"
           f"Максимальный возраст: {settings.max_age}\n")
-    '''
-    search_pages = {       # Если появятся еще и `зеленые`, `фиолетовые` и прочие страницы - мы просто добавим их здесь
-        'red': NoticePage(url=settings.search_pages_urls['red']),
-        'yellow': NoticePage(url=settings.search_pages_urls['yellow'])
-    }
-    '''
-    # search_pages = {}   # Храним тут ссылки на поисковые страницы (`red`, `yellow`). Легко масштабируется
-    for page_id, page_url in settings.search_pages_urls.items():
-        # search_pages[page_id] = NoticePage(url=page_url)
-        # Фильтр по требуемым поисковым страницам ['red', 'yellow']. Если пуст - фильтр игнорируется.
-        if settings.search_pages_id and page_id not in settings.search_pages_id:
-            # Если параметр заполнен И текущий `page_id` НЕ содержится в параметре - то пропускаем этот `page_id`.
-            continue
-        page_object = NoticePage(url=page_url)
 
-        # for page_id, page_object in search_pages.items():
-        """Цикл по всем заданным поисковым страницам: красные и желтые"""
+    for page_id, page_url in settings.search_pages_urls.items():
+        """
+        Главный цикл, который проходит по списку ключей поисковых страниц: `red`, `yellow`.
+        Если в задаче появятся другие типы, вроде `purple`, `blue` - то их добавление ограничивается файлом настроек.
+        """
+        if settings.search_pages_id and page_id not in settings.search_pages_id:
+            # Если параметр заполнен И текущий `page_id` НЕ содержится в параметре - то пропускаем этот тип страниц.
+            continue
+        page_object = NoticePage(url=page_url)      # Создаем объект поисковой страницы нужного типа.
+
         print(f'Page `{page_id}` get_status: {page_object.get_status()}')
         '''
         Использовать параметры объекта настроек нагляднее, но перехватить ошибки битого файла настроек проще
