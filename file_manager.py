@@ -84,12 +84,16 @@ def load_json(file_path: Path, default={}) -> json:
     :param default: Использовать значение по-умолчанию, если файл отсутствует
     :return: json-объект с настройками
     """
-
+    json_data = None
     if file_path.exists():
         with file_path.open() as f:
-            json_data = json.load(f)
-            print(f'Файл настроек `{str(file_path)}` загружен.')
-    else:
+            try:
+                json_data = json.load(f)
+                print(f'Файл настроек `{str(file_path)}` загружен.')
+            except Exception as e:
+                print(e, '\nФайл настроек имеет неверный формат. Файл будет перезаписан со значениями по-умолчанию.')
+
+    if not json_data:
         json_data = default
         save_file(file_path=file_path, file_data=json_data)
 
