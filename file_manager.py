@@ -68,8 +68,8 @@ class Settings:
         self.request_url = self.data['request_url']
         self.nations = self.data['nations']
         self.genders = self.data['genders']
-        self.min_age = self.data['min_age']
-        self.max_age = self.data['max_age']
+        self.min_age = min(self.data['min_age'], self.data['max_age'])
+        self.max_age = max(self.data['min_age'], self.data['max_age'])
         self.notices_limit = self.data['notices_limit']
         self.keywords = self.data['keywords']
 
