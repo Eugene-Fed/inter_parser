@@ -5,7 +5,7 @@ import json
 import itertools
 from file_manager import Settings, save_file
 
-from bs_interface import NoticePage, Person
+from bs_interface import NoticePage, PersonDetail, PersonPreview
 from pathlib import Path
 
 
@@ -66,7 +66,8 @@ if __name__ == '__main__':
     print(f"Гражданство: {settings.nations}\n"
           f"Пол: {settings.genders}\n"
           f"Минимальный возраст: {settings.min_age}\n"
-          f"Максимальный возраст: {settings.max_age}\n")
+          f"Максимальный возраст: {settings.max_age}\n"
+          f"Только Превью: {settings.preview_only}")
 
     for page_id, page_url in settings.search_pages_urls.items():
         """
@@ -124,22 +125,30 @@ if __name__ == '__main__':
                                                     nation=nation, gender=gender, age=age, keyword=keyword)
                     result_notices.update(search_notices)
 
-            print(json.dumps(result_notices, indent=4))
+            # print(json.dumps(result_notices, indent=4))
             print(f'Total notices in Response: {notices_total}')
             print(f'Total notices in Result: {len(result_notices)}')
 
             for notice_id, notice_preview_json in result_notices.items():
                 # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
-                person_detail_url = notice_preview_json['_links']['self']['href']
-                images_url = notice_preview_json['_links']['images']['href']
-
-                person = Person(person_detail_url=person_detail_url, images_url=images_url)
-                # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/detail.json'
+                # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
                 person_result_path = Path(settings.result_dir,
                                           page_id,
                                           page_object.nationalities[nation],
-                                          person.person_id)
-                save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person.detail_data)
+                                          notice_id.replace('/', '-'))
+
+                if settings.preview_only:
+                    person = PersonPreview(person_preview_data=notice_preview_json)
+                else:
+                    person_detail_url = notice_preview_json['_links']['self']['href']
+                    images_url = notice_preview_json['_links']['images']['href']
+
+                    person = PersonDetail(person_detail_url=person_detail_url, images_url=images_url)
+
+                if hasattr(person, 'detail_json'):
+                    save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person.detail_json)
+                else:
+                    save_file(file_path=Path(person_result_path, 'preview.json'), file_data=person.preview_json)
 
                 # Выгружаем все фото в папку Персоны
                 for image_name, image_raw in person.images.items():

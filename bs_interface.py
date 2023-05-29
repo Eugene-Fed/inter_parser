@@ -83,12 +83,36 @@ class NoticePage:
         return int(page.find('strong', id='totalResults').string)
 
 
-class Person:
-    person_id = ''              # Идентификатор Персоны формата `ГОД_ID`
-    detail_url = ''             # Ссылка на подробную страницу Персоны
-    images_url = ''             # Запрос на получение ссылок всех фото Персоны
-    detail_data = {}            # json (словарь) с подробными данными Персоны
-    images = {}                 # Словарь {`picture_id`: `image_raw_data`}, в котором хранятся все фото (без миниатюры).
+class PersonPreview:
+    """
+    preview_json = {}
+    images = {}
+    """
+
+    def __init__(self, person_preview_data: dict):
+        self.preview_json = person_preview_data
+        try:
+            self.images = self.get_thumbnail(person_preview_data['_links']['thumbnail']['href'])
+        except Exception as e:
+            print(e)
+            self.images = {}
+
+    def __call__(self):
+        return self.preview_json, self.images
+
+    def get_thumbnail(self, images_url: str):
+        return {'thumbnail.jpg': requests.get(images_url).content}
+
+
+class PersonDetail:
+    # TODO - наследовать от `PersonPreview`
+    """
+    person_id = ''          # Идентификатор Персоны формата `ГОД_ID`
+    detail_url = ''         # Ссылка на подробную страницу Персоны
+    images_url = ''         # Запрос на получение ссылок всех фото Персоны
+    detail_json = {}        # json (словарь) с подробными данными Персоны
+    images = {}             # Словарь {`picture_id`: `image_raw_data`}, в котором хранятся все фото (без миниатюры).
+    """
 
     def __init__(self, person_detail_url: str, images_url: str):
         """
@@ -104,8 +128,8 @@ class Person:
         self.detail_url = person_detail_url
         self.images_url = images_url
         # TODO - перехватить все статусы реквестов кроме 200-го. Вероятно проще написать универсальный класс обработки
-        self.detail_data = requests.get(person_detail_url).json()
-        self.person_id = self.detail_data['entity_id'].replace('/', '-')    # Заменяем `/` на `-` для корректного пути
+        self.detail_json = requests.get(person_detail_url).json()
+        self.person_id = self.detail_json['entity_id'].replace('/', '-')    # Заменяем `/` на `-` для корректного пути
 
         # Получаем список ID и фотографии персоны
         images_json = requests.get(images_url).json()
@@ -119,4 +143,4 @@ class Person:
 
     def __call__(self):
         # При вызове можно сразу же и сохранять файлы, либо прописать это отдельным методом. Либо оставить как есть =)
-        return self.detail_data, self.images
+        return self.detail_json, self.images

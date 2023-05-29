@@ -18,6 +18,7 @@ SETTINGS_DATA = {
     'min_age': 0,
     'max_age': 120,
     'notices_limit': 160,
+    'preview_only': False,      # Если `True` - собирает только упрощенные данные: ФИО, Д.р., Гражданство и Миниатюра.
     'keywords': {    # Эта фича не помогает нарастить количество результатов, поэтому можно опустить ради быстродействия
         'red': ['ammunition', 'armed', 'assault', 'blackmail', 'crime', 'criminal', 'death', 'drug', 'encroachment',
                 'explosive', 'extorsion', 'extremist', 'federal', 'femicidio', 'firearms', 'homicide', 'hooliganism',
@@ -32,6 +33,8 @@ class Settings:
     # TODO - вместо словаря параметров использовать **kwargs для генерации параметров по содержимому файла настроек
     data = SETTINGS_DATA
     path = SETTINGS_FILE
+    preview_only = False
+    """
     result_dir = Path('')
     search_pages_urls = {}
     request_url = ''
@@ -42,6 +45,7 @@ class Settings:
     max_age = 0
     notices_limit = 0
     keywords = {}
+    """
 
     def __init__(self, settings_path=None):
         """
@@ -73,6 +77,7 @@ class Settings:
         self.max_age = max(self.data['min_age'], self.data['max_age'])
         self.notices_limit = self.data['notices_limit']
         self.keywords = self.data['keywords']
+        self.preview_only = self.data['preview_only']
 
     def __call__(self, *args, **kwargs):
         return self.data
@@ -102,6 +107,9 @@ def load_json(file_path: Path, default={}) -> json:
 
 
 def save_file(file_path: Path, file_data=None) -> None:
+    # TODO - Реализовать как класс `FileSaver` с двумя методами: `save_image` и `save_json`.
+    # todo - При инициализации класс принимает Путь к файлу 'file_path' и создает структуру папок для сохранения.
+    # todo - Или принимает два параметра: путь `folders` и имя файла `file_name`.
     """
     Сохранение файла с учетом формата данных.
     :param file_path: Конечный путь к файлу в формате `json` или изображения. Во втором случае - нужно выяснить его тип.
