@@ -18,7 +18,7 @@ SETTINGS_DATA = {
     'min_age': 0,
     'max_age': 120,
     'notices_limit': 160,
-    'keywords': {
+    'keywords': {    # Эта фича не помогает нарастить количество результатов, поэтому можно опустить ради быстродействия
         'red': ['ammunition', 'armed', 'assault', 'blackmail', 'crime', 'criminal', 'death', 'drug', 'encroachment',
                 'explosive', 'extorsion', 'extremist', 'federal', 'femicidio', 'firearms', 'homicide', 'hooliganism',
                 'illegal', 'infanticidio', 'injury', 'murder', 'narcotic', 'passport', 'rape', 'sabotag', 'sexual',

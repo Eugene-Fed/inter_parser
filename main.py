@@ -9,7 +9,7 @@ from bs_interface import NoticePage, Person
 from pathlib import Path
 
 
-def get_notices(url='', notice_type='', nation='', gender='', age='', keyword='', request='') -> (dict, int):
+def get_notices(url='', notice_type='', nation='', gender='', age='', keyword='', request='', limit='') -> (dict, int):
     """
     Формирует словарь Превьюшек с базовыми данными для всех Персон, подходящих под фильтр.
     :param url: api-ссылка
@@ -19,6 +19,7 @@ def get_notices(url='', notice_type='', nation='', gender='', age='', keyword=''
     :param age: Возраст для фильтрации. Используем одно значения для минимального и максимального значения.
     :param keyword: Уточняющее слово, которое позволяет сузить выборку. Используем его при выдаче более 159 результатов.
     :param request: Готовый запрос с фильтрами и указанием страницы выдачи. Используем его при рекурсивном обходе.
+    :param limit: Количество результатов выдачи на одну страницу.
     :return: Возвращаем словарь и целое число. Словарь: Ключ - `entity_id`,
     Значение - Словарь с краткими сведениями о найденной персоне. Из него получаем, в том числе,
     ссылку на фото и запрос детальной информации.
@@ -31,7 +32,8 @@ def get_notices(url='', notice_type='', nation='', gender='', age='', keyword=''
         request = f'{url}{notice_type}?' \
                   f'nationality={nation}&' \
                   f'sexId={gender}&' \
-                  f'ageMin={age}&ageMax={age}&freeText={keyword}'
+                  f'ageMin={age}&ageMax={age}&' \
+                  f'resultPerPage={limit}&freeText={keyword}'
     print(f'Request: {request}')
     response = requests.get(url=request)
 
@@ -46,11 +48,12 @@ def get_notices(url='', notice_type='', nation='', gender='', age='', keyword=''
                 # Собираем все превью персон в словарь. Ключом выступает уникальный идентификатор Запроса
                 notices[notice['entity_id']] = notice
 
-            next_page = output_dict['_links'].get('next')   # default=None. Пытаемся найти ссылку на следующую страницу
+            next_page = output_dict['_links'].get('next')     # Ищем ссылку на следующую страницу выдачи, `default=None`
             if next_page:
                 # У последней страницы нет ссылки на следующую страницу.
                 # TODO - заменить предварительное сохранение и проверку "истинности" результата на обработку ошибок сети
                 # Рекурсивно проходим по всем доступным страницам выдачи, обновляя словарь Превьюшек персон ("Нотисов")
+                # TODO - больше не нужно, т.к. забираем всю доступную выдачу одним запросом без разбивки на страницы
                 next_page_response, total = get_notices(request=next_page['href'])
                 if next_page_response:       # Если результат не пуст (а он не должен быть пуст, если сеть доступна),
                     notices.update(next_page_response)   # то расширяем словарь "нотисов".
@@ -106,7 +109,8 @@ if __name__ == '__main__':
 
             # Получаем все результаты по запросу и их общее количество
             search_notices, notices_total = get_notices(url=settings.request_url, notice_type=page_id,
-                                                        nation=nation, gender=gender, age=age)
+                                                        nation=nation, gender=gender, age=age,
+                                                        limit=settings.notices_limit)
             result_notices.update(search_notices)
 
             if notices_total >= settings.notices_limit:
