@@ -105,7 +105,7 @@ class PersonPreview:
 
 
 class PersonDetail:
-    # TODO - наследовать от `PersonPreview`
+    # TODO - наследовать от `PersonPreview` (если  это имеет смысл).
     """
     person_id = ''          # Идентификатор Персоны формата `ГОД_ID`
     detail_url = ''         # Ссылка на подробную страницу Персоны
@@ -115,6 +115,7 @@ class PersonDetail:
     """
 
     def __init__(self, person_detail_url: str, images_url: str):
+        # TODO - по аналогии с `PersonPreview` можно принимать лишь превью данных, и добывать ссылку на фото уже здесь.
         """
         - При инициализации или вызове можно добавить флаги `json_data = False, img = False`. Это упрощает код,
         но считается "моветоном" среди некоторых ООП-шников. На Плюсах это норм, а в Питоне считается хорошим тоном
