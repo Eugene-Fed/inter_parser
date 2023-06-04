@@ -137,8 +137,8 @@ def save_file(file_path: Path, file_data=None) -> None:
         if not img_suffix:
             img_suffix = 'jpg'  # Если модуль не смог получить тип изображения, сохраняем его как `jpg`
         '''
-        img_suffix = r'.jpg'
-        file_path = file_path.with_suffix(img_suffix)       # Добавляем к пути файла расширение изображения
+
+        # file_path = file_path.with_suffix(img_suffix)       # Добавляем к пути файла расширение изображения
         with file_path.open('wb') as fp:
             fp.write(file_data)
 

@@ -101,7 +101,9 @@ class PersonPreview:
         return self.preview_json, self.images
 
     def get_thumbnail(self, images_url: str):
-        return {'thumbnail.jpg': requests.get(images_url).content}
+        response = requests.get(images_url)
+        suffix = response.headers['content-type'].split('/')[-1]
+        return {f'thumbnail.{suffix}': response.content}
 
 
 class PersonDetail:
@@ -138,7 +140,13 @@ class PersonDetail:
         try:
             # TODO - сделать проверку на пустой ответ или коды ошибок
             for item in images_json['_embedded']['images']:
-                self.images[item['picture_id']] = requests.get(item['_links']['self']['href']).content
+                response = requests.get(item['_links']['self']['href'])
+                try:
+                    suffix = response.headers['content-type'].split('/')[-1]    # Получаем расширение файла
+                except Exception:
+                    suffix = '.jpg'
+
+                self.images[f"{item['picture_id']}.{suffix}"] = response.content    # Сохраняем картинку с именем
         except Exception as e:
             print(e)
 
