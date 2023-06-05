@@ -5,7 +5,7 @@
         "yellow": "https://www.interpol.int/How-we-work/Notices/View-Red-Notices"
     },
     "request_url": "https://ws-public.interpol.int/notices/v1/",
-    "nations": ["RU"],
+    "nations": [],
     "genders": [],
     "search_pages_id": [],
     "min_age": 0,
