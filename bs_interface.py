@@ -1,6 +1,8 @@
 # -*- coding: UTF-8 -*-
 
 import requests
+import asyncio
+import aiohttp
 from bs4 import BeautifulSoup
 
 
@@ -92,7 +94,9 @@ class PersonPreview:
     def __init__(self, person_preview_data: dict):
         self.preview_json = person_preview_data
         try:
-            self.images = self.get_thumbnail(person_preview_data['_links']['thumbnail']['href'])
+            pass
+            # self.images = self.get_thumbnail(person_preview_data['_links']['thumbnail']['href'])
+            # self.images = self.get_async_thumbnail(person_preview_data['_links']['thumbnail']['href'])
         except Exception as e:
             print(e)
             self.images = {}
@@ -102,8 +106,20 @@ class PersonPreview:
 
     def get_thumbnail(self, images_url: str):
         response = requests.get(images_url)
+        # response = yield from aiohttp.request('GET', url=images_url)      # Альтернативный асинхронный вызов
         suffix = response.headers['content-type'].split('/')[-1]
         return {f'thumbnail.{suffix}': response.content}
+
+    async def get_async_thumbnail(self, images_url: str):
+        result = {}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(images_url) as resp:
+                if resp.status == 200:
+                    output_img = await resp.content
+                    suffix = resp.headers['content-type'].split('/')[-1]
+                    result = {f'thumbnail.{suffix}': output_img}
+
+        return result
 
 
 class PersonDetail:
@@ -153,3 +169,47 @@ class PersonDetail:
     def __call__(self):
         # При вызове можно сразу же и сохранять файлы, либо прописать это отдельным методом. Либо оставить как есть =)
         return self.detail_json, self.images
+
+
+class AsyncRequest:
+    # TODO - дописать класс для использования асинхронных запросов вместо отдельных методов, описанных ниже.
+    request = None
+    response_json = {}
+    response_headers = {}
+    response_contend = None
+
+    def __init__(self, url: str, method='GET',  headers=''):
+        self.url = url
+        self.method = method
+        self.headers = headers
+
+    async def __call__(self):
+        try:
+            request = await aiohttp.request(method=self.method, url=self.url, headers=self.headers)
+            self.response_json = request.json()
+            self.response_contend = request.content()
+            self.response_headers = request.headers
+            request.close()
+        except Exception as e:
+            print(e)
+        self.response_json = self.request.json()
+        self.response_contend = self.request.content()
+
+    async def get_async_json(url: str, method='GET',  headers=''):
+        try:
+            request = await aiohttp.request(method=method, url=url, headers=headers)
+            request.close()
+        except Exception as e:
+            print(e)
+        return
+
+
+async def get_async_response_json(url: str, method='GET'):
+    response_json = {}
+    try:
+        response = await aiohttp.request(method=method, url=url)
+        response_json = await response.json()
+        response.close()
+    except Exception as e:
+        print(e)
+    return response_json

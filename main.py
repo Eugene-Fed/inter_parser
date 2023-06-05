@@ -3,14 +3,16 @@
 import requests
 import json
 import itertools
+import asyncio
+import aiohttp
 from file_manager import Settings, save_file
 
 from bs_interface import NoticePage, PersonDetail, PersonPreview
 from pathlib import Path
 
 
-def get_notices(url='', notice_type='', nation='', gender='', keyword='', request='', limit=0,
-                age=0, min_age=0, max_age=0) -> dict:
+async def get_notices(url='', notice_type='', nation='', gender='', keyword='', request='', limit=0,
+                min_age=0, max_age=0) -> dict:
     """
     Формирует словарь Превьюшек с базовыми данными для всех Персон, подходящих под фильтр.
     :param url: api-ссылка
@@ -31,7 +33,6 @@ def get_notices(url='', notice_type='', nation='', gender='', keyword='', reques
     min_age = int(min(min_age, max_age))
     max_age = int(max(min_age, max_age))
     notices = {}        # Словарь, который хранит результаты выдачи
-    total = 0           # DEPRECATED: Общее количество результатов в выдаче. Забираем его атрибутов параметров выдачи.
     if not request:     # Этот `if` потерял актуальность, т.к. больше не используем параметр `request`.
         # Если нам не передан готовый реквест, значит собираем его из параметров
         request = f'{url}{notice_type}?' \
@@ -40,14 +41,21 @@ def get_notices(url='', notice_type='', nation='', gender='', keyword='', reques
                   f'ageMin={min_age}&ageMax={max_age}&' \
                   f'resultPerPage={limit}'      # &freeText={keyword} - Ключевой запрос больше не используем.
     print(f'Request: {request}')
+    '''
     response = requests.get(url=request)
-
     # TODO - обработать все прочие запросы. Возможно, добавить несколько попыток при получении 4** и 5** ошибок.
+    output_dict = response.json() if response.status_code == 200 else None
     '''
-    if response.status_code == 200:  # Для простоты игнорируем другие статусы. По-уму их тоже нужно обработать
-        output_dict = response.json()   # Метод .json сразу же возвращает Словарь вместо json-Сроки.
-    '''
-    output_dict = response.json() if response.status_code == 200 else None      # Сократил вложенность `иф-элсов`
+
+    # response = requests.get(request)
+    # output_dict = response.json()
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(request) as resp:
+            if resp.status == 200:
+                output_dict = await resp.json()
+            else:
+                output_dict = {}
 
     if output_dict and int(output_dict['total']) > 0:  # Проверяем что результат не пуст и `total` больше `0`
         total = int(output_dict['total'])
@@ -58,11 +66,34 @@ def get_notices(url='', notice_type='', nation='', gender='', keyword='', reques
             Для этого разбиваем возрастной диапазон на 2 половины и рекурсивно вызываем метод по двум новым диапазонам.
             """
             [lower_min_age, lower_max_age], [upper_min_age, upper_max_age] = get_age_ranges(min_age, max_age)
-
+            '''
+            # Рекурсивная часть оригинального синхронного кода.
             notices.update(get_notices(url=url, notice_type=notice_type, nation=nation, gender=gender, keyword=keyword,
                                        limit=limit, min_age=lower_min_age, max_age=lower_max_age))
             notices.update(get_notices(url=url, notice_type=notice_type, nation=nation, gender=gender, keyword=keyword,
                                        limit=limit, min_age=upper_min_age, max_age=upper_max_age))
+            '''
+
+            # Асинхронный вариант рекурсивного обхода
+            notice_lower_age = {
+                'url': url,
+                'notice_type': notice_type,
+                'nation': nation,
+                'gender': gender,
+                'keyword': keyword,
+                'limit': limit,
+                'min_age': lower_min_age,
+                'max_age': lower_max_age
+            }
+            notice_upper_age = notice_lower_age.copy()
+            notice_upper_age.update({'min_age': upper_min_age, 'max_age': upper_max_age})
+            tasks = [asyncio.create_task(get_notices(**notice_lower_age)),
+                     asyncio.create_task(get_notices(**notice_upper_age))]
+            done, _ = await asyncio.wait(tasks)
+
+            for future in done:
+                notices.update(future.result())
+
         else:
             """
             Если в выдаче меньше 160 результатов ИЛИ минимальный возраст равен максимальному -
@@ -70,23 +101,65 @@ def get_notices(url='', notice_type='', nation='', gender='', keyword='', reques
             """
             for notice in output_dict['_embedded']['notices']:
                 # Собираем все превью персон в словарь. Ключом выступает уникальный идентификатор Запроса
-                notices[notice['entity_id']] = notice
-
-        """
-        По сути мы больше не нуждаемся в этом блоке кода, т.к. забираем всю выдачу сразу без разбивки на страницы -
-        `next_page` всегда будет `None`. Однако оставлю его "прозапас" на случай непредвиденных задач.
-        """
-        next_page = output_dict['_links'].get('next')     # Ищем ссылку на следующую страницу выдачи, `default=None`.
-        if next_page:
-            # У последней страницы нет ссылки на следующую страницу.
-            # TODO - заменить предварительное сохранение и проверку "истинности" результата на обработку ошибок сети
-            # Рекурсивно проходим по всем доступным страницам выдачи, обновляя словарь Превьюшек персон ("Нотисов").
-            # TODO - больше не нужно, т.к. забираем всю доступную выдачу одним запросом без разбивки на страницы
-            next_page_response, total = get_notices(request=next_page['href'])
-            if next_page_response:       # Если результат не пуст (а он не должен быть пуст, если сеть доступна),
-                notices.update(next_page_response)   # то расширяем словарь "нотисов".
+                # notices[notice['entity_id']] = notice
+                notices[notice['entity_id']] = {'person_preview': notice,
+                                                'person_nation': nation,
+                                                'notice_type': notice_type}
 
     return notices  # Пустой словарь тоже обработается без ошибок как в рекурсии, так и в вызывающем коде
+
+
+async def async_filters_loop(url, page_type, notices_limit, min_age, max_age, nations, genders):
+    result_notices = {}
+    # Генерируем список `задач`, на основе всех доступных вариантов фильтров
+    main_search_tasks = [asyncio.create_task(get_notices(url=url, notice_type=page_type,
+                                                         nation=nation, gender=gender,
+                                                         limit=notices_limit,
+                                                         min_age=min_age, max_age=max_age)) for
+             nation, gender in itertools.product(nations, genders)]
+
+    done_tasks, _ = await asyncio.wait(main_search_tasks)
+
+    for task in done_tasks:
+        result_notices.update(task.result())   # Асинхронно получаем общий словарь с превью по всем возможным фильтрам
+
+    persons = [asyncio.create_task(get_persons(page_type=page_type,
+                                               person_id=notice_id, person_data=notice_data)) for
+               notice_id, notice_data in result_notices.items()]
+    # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
+
+    await asyncio.wait(persons)
+
+
+async def get_persons(page_type, person_id, person_data):
+    # notice_preview_json = person_data['person_preview']
+    # TODO - передавать `settings` параметом, вместо использования глобала
+    # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
+    person_result_path = Path(settings.result_dir,
+                              page_type,
+                              page_object.nationalities[person_data['person_nation']],
+                              person_id.replace('/', '-'))
+
+    if settings.preview_only:
+        # person = PersonPreview(person_preview_data=notice_preview_json)
+        person = PersonPreview(person_preview_data=person_data['person_preview'])
+    else:
+        # person_detail_url = notice_preview_json['_links']['self']['href']
+        # images_url = notice_preview_json['_links']['images']['href']
+        # person = PersonDetail(person_detail_url=person_detail_url, images_url=images_url)
+
+        person = PersonDetail(person_detail_url=person_data['person_preview']['_links']['self']['href'],
+                              images_url=person_data['person_preview']['_links']['images']['href'])
+
+    if hasattr(person, 'detail_json'):
+        save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person.detail_json)
+    else:
+        save_file(file_path=Path(person_result_path, 'preview.json'), file_data=person.preview_json)
+
+    # Выгружаем все фото в папку Персоны
+    # for image_name, image_raw in person.images.items():
+    # for image_name, image_raw in await person.get_async_thumbnail(person_data['person_preview']['_links']['thumbnail']['href']):
+    #    save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
 
 
 def get_age_ranges(min_age: int, max_age: int) -> list:
@@ -112,17 +185,17 @@ if __name__ == '__main__':
           f"Максимальный возраст: {settings.max_age}\n"
           f"Только Превью: {settings.preview_only}")
 
-    for page_id, page_url in settings.search_pages_urls.items():
+    for page_type, page_url in settings.search_pages_urls.items():
         """
         Главный цикл, который проходит по списку ключей поисковых страниц: `red`, `yellow`.
         Если в задаче появятся другие типы, вроде `purple`, `blue` - то их добавление ограничивается файлом настроек.
         """
-        if settings.search_pages_id and page_id not in settings.search_pages_id:
-            # Если параметр заполнен И текущий `page_id` НЕ содержится в параметре - то пропускаем этот тип страниц.
+        if settings.search_pages_id and page_type not in settings.search_pages_id:
+            # Если параметр заполнен И текущий `page_type` НЕ содержится в параметре - то пропускаем этот тип страниц.
             continue
         page_object = NoticePage(url=page_url)      # Создаем объект поисковой страницы нужного типа.
 
-        print(f'Page `{page_id}` get_status: {page_object.get_status()}')
+        print(f'Page `{page_type}` get_status: {page_object.get_status()}')
         '''
         Использовать параметры объекта настроек нагляднее, но перехватить ошибки битого файла настроек проще
         с использованием словаря параметров: nations = settings.data.get('nations', page_object.nationalities)
@@ -133,6 +206,12 @@ if __name__ == '__main__':
         genders = settings.genders if settings.genders else page_object.genders
 
         # for nation, gender, age in itertools.product(nations, genders, range(settings.min_age, settings.max_age+1)):
+
+        asyncio.run(main=async_filters_loop(url=settings.request_url, page_type=page_type,
+                                            notices_limit=settings.notices_limit, min_age=settings.min_age,
+                                            max_age=settings.max_age, nations=nations, genders=genders))
+
+        """
         for nation, gender in itertools.product(nations, genders):
             '''
             Цикл по всем вариациям фильтров в заданных пределах. Сохраняем результаты в промежуточный словарь.
@@ -151,28 +230,16 @@ if __name__ == '__main__':
                 continue
 
             # Получаем все результаты по запросу и их общее количество
-            search_notices = get_notices(url=settings.request_url, notice_type=page_id,
+            search_notices = get_notices(url=settings.request_url, notice_type=page_type,
                                          nation=nation, gender=gender,
                                          limit=settings.notices_limit,
                                          min_age=settings.min_age, max_age=settings.max_age)
+            # ioloop = asyncio.get_event_loop()
+            # ioloop.run_until_complete()
 
             # if notices_total < 160:
             result_notices.update(search_notices)
-
-            # TODO - оценить необходимость доп. фильтрации по ключевым запросам.
-            '''
-            if notices_total >= settings.notices_limit:
-                """
-                В случае, если запрос без ключа дает нам больше 160 результатов, мы создаем дополнительные запросы
-                ключами и пересобираем данные уже по ним. Результатом является словарь - это избавит от дублей.
-                """
-                for keyword in settings.keywords[page_id]:
-                    print(f'Using the key `{keyword}` for request')
-                    search_notices, _ = get_notices(url=settings.request_url, notice_type=page_id,
-                                                    nation=nation, gender=gender, age=age, keyword=keyword)
-                    result_notices.update(search_notices)
-            '''
-
+            
             # print(json.dumps(result_notices, indent=4))
             # print(f'Total notices in Response: {notices_total}')
             print(f'Total notices in Result: {len(result_notices)}')
@@ -181,7 +248,7 @@ if __name__ == '__main__':
                 # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
                 # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
                 person_result_path = Path(settings.result_dir,
-                                          page_id,
+                                          page_type,
                                           page_object.nationalities[nation],
                                           notice_id.replace('/', '-'))
 
@@ -201,3 +268,4 @@ if __name__ == '__main__':
                 # Выгружаем все фото в папку Персоны
                 for image_name, image_raw in person.images.items():
                     save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
+        """
