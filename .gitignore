@@ -6,6 +6,9 @@ __pycache__/
 # RESULTS
 result/*
 
+# test files
+async_test.py
+
 # C extensions
 *.so
 

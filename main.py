@@ -7,7 +7,7 @@ import asyncio
 import aiohttp
 from file_manager import Settings, save_file
 
-from bs_interface import NoticePage, PersonDetail, PersonPreview
+from bs_interface import NoticePage, PersonDetail, PersonPreview, get_async_response
 from pathlib import Path
 
 
@@ -33,6 +33,7 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     min_age = int(min(min_age, max_age))
     max_age = int(max(min_age, max_age))
     notices = {}        # Словарь, который хранит результаты выдачи
+    output_dict = {}
     if not request:     # Этот `if` потерял актуальность, т.к. больше не используем параметр `request`.
         # Если нам не передан готовый реквест, значит собираем его из параметров
         request = f'{url}{notice_type}?' \
@@ -50,12 +51,19 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     # response = requests.get(request)
     # output_dict = response.json()
 
+    response = await get_async_response(request, sleep=1)
+    response_status = response.get('status')
+    if response_status == 200:
+        # output_dict = await response.json()
+        output_dict = await response.get('json')
+    '''
     async with aiohttp.ClientSession() as session:
         async with session.get(request) as resp:
             if resp.status == 200:
                 output_dict = await resp.json()
             else:
                 output_dict = {}
+    '''
 
     if output_dict and int(output_dict['total']) > 0:  # Проверяем что результат не пуст и `total` больше `0`
         total = int(output_dict['total'])
@@ -91,6 +99,10 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
                      asyncio.create_task(get_notices(**notice_upper_age))]
             done, _ = await asyncio.wait(tasks)
 
+            # alt
+            # tasks = [get_notices(**notice_lower_age), get_notices(**notice_upper_age)]
+            # done = await asyncio.gather(*tasks)
+
             for future in done:
                 notices.update(future.result())
 
@@ -107,6 +119,45 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
                                                 'notice_type': notice_type}
 
     return notices  # Пустой словарь тоже обработается без ошибок как в рекурсии, так и в вызывающем коде
+
+
+async def get_persons(page_type, person_id, person_data):
+    # notice_preview_json = person_data['person_preview']
+    # TODO - передавать `settings` параметом, вместо использования глобала
+    # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
+    person_result_path = Path(settings.result_dir,
+                              page_type,
+                              page_object.nationalities[person_data['person_nation']],
+                              person_id.replace('/', '-'))
+
+    if settings.preview_only:
+        # person = PersonPreview(person_preview_data=notice_preview_json)
+        person = PersonPreview(person_preview_data=person_data['person_preview'])
+
+        # person_images = await person.get_async_thumbnail()
+    else:
+        # person_detail_url = notice_preview_json['_links']['self']['href']
+        # images_url = notice_preview_json['_links']['images']['href']
+        # person = PersonDetail(person_detail_url=person_detail_url, images_url=images_url)
+        # person = PersonDetail(person_detail_url=person_data['person_preview']['_links']['self']['href'],
+        #                      images_url=person_data['person_preview']['_links']['images']['href'])
+        person = PersonDetail(person_preview_data=person_data['person_preview'])
+        person_detail = await person.get_detail_json()
+
+    if hasattr(person, 'detail_json'):
+        save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person_detail)
+    else:
+        save_file(file_path=Path(person_result_path, 'preview.json'), file_data=person.preview_json)
+
+    person_images = person.get_images()     # сохраняем картинки последовательно, иначе сервер выдает 4хх ошибки
+    # person_images = await person.get_async_images()     # получаем результат выполнения корутины
+    # person_images = person.get_async_images() # создаем футуру - объект корутины. футура требует ожидания
+    # Выгружаем все фото в папку Персоны
+    # for image_name, image_raw in person.images.items():
+    # _ = await person.get_async_images()
+    # for image_name, image_raw in person.images.items():
+    for image_name, image_raw in person_images.items():
+        save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
 
 
 async def async_filters_loop(url, page_type, notices_limit, min_age, max_age, nations, genders):
@@ -129,37 +180,6 @@ async def async_filters_loop(url, page_type, notices_limit, min_age, max_age, na
     # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
 
     await asyncio.wait(persons)
-
-
-async def get_persons(page_type, person_id, person_data):
-    # notice_preview_json = person_data['person_preview']
-    # TODO - передавать `settings` параметом, вместо использования глобала
-    # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
-    person_result_path = Path(settings.result_dir,
-                              page_type,
-                              page_object.nationalities[person_data['person_nation']],
-                              person_id.replace('/', '-'))
-
-    if settings.preview_only:
-        # person = PersonPreview(person_preview_data=notice_preview_json)
-        person = PersonPreview(person_preview_data=person_data['person_preview'])
-    else:
-        # person_detail_url = notice_preview_json['_links']['self']['href']
-        # images_url = notice_preview_json['_links']['images']['href']
-        # person = PersonDetail(person_detail_url=person_detail_url, images_url=images_url)
-
-        person = PersonDetail(person_detail_url=person_data['person_preview']['_links']['self']['href'],
-                              images_url=person_data['person_preview']['_links']['images']['href'])
-
-    if hasattr(person, 'detail_json'):
-        save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person.detail_json)
-    else:
-        save_file(file_path=Path(person_result_path, 'preview.json'), file_data=person.preview_json)
-
-    # Выгружаем все фото в папку Персоны
-    # for image_name, image_raw in person.images.items():
-    # for image_name, image_raw in await person.get_async_thumbnail(person_data['person_preview']['_links']['thumbnail']['href']):
-    #    save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
 
 
 def get_age_ranges(min_age: int, max_age: int) -> list:
@@ -206,6 +226,12 @@ if __name__ == '__main__':
         genders = settings.genders if settings.genders else page_object.genders
 
         # for nation, gender, age in itertools.product(nations, genders, range(settings.min_age, settings.max_age+1)):
+        '''
+        with asyncio.Runner() as runner:
+            runner.run(async_filters_loop(url=settings.request_url, page_type=page_type,
+                                          notices_limit=settings.notices_limit, min_age=settings.min_age,
+                                          max_age=settings.max_age, nations=nations, genders=genders))
+        '''
 
         asyncio.run(main=async_filters_loop(url=settings.request_url, page_type=page_type,
                                             notices_limit=settings.notices_limit, min_age=settings.min_age,

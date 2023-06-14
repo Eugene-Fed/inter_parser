@@ -93,46 +93,61 @@ class PersonPreview:
 
     def __init__(self, person_preview_data: dict):
         self.preview_json = person_preview_data
-        try:
-            pass
-            # self.images = self.get_thumbnail(person_preview_data['_links']['thumbnail']['href'])
-            # self.images = self.get_async_thumbnail(person_preview_data['_links']['thumbnail']['href'])
-        except Exception as e:
-            print(e)
-            self.images = {}
+        self.thumbnail_url = self.preview_json['_links']['thumbnail']['href']
+        self.images = {}
 
-    def __call__(self):
+    async def __call__(self):
+        self.images = await self.get_async_thumbnail(self.thumbnail_url)
         return self.preview_json, self.images
 
     def get_thumbnail(self, images_url: str):
+        """
+        DEPRECATED
+        :param images_url:
+        :return:
+        """
         response = requests.get(images_url)
-        # response = yield from aiohttp.request('GET', url=images_url)      # Альтернативный асинхронный вызов
         suffix = response.headers['content-type'].split('/')[-1]
         return {f'thumbnail.{suffix}': response.content}
 
-    async def get_async_thumbnail(self, images_url: str):
-        result = {}
-        async with aiohttp.ClientSession() as session:
-            async with session.get(images_url) as resp:
-                if resp.status == 200:
-                    output_img = await resp.content
-                    suffix = resp.headers['content-type'].split('/')[-1]
-                    result = {f'thumbnail.{suffix}': output_img}
+    async def get_async_thumbnail(self, url='') -> dict:
+        """
+        Отдельный метод для загрузки только Превью картинки на случай острой необходимости.
+        :param url:
+        :return: Словарь, содержащий имя изображения и само изображение.
+        """
+        if not url:
+            url = self.thumbnail_url
+        response = await get_async_response(url=url)        # Создаем футуру
+        response_status = response.get('status')    # Мы не можем использовать футуру напрямую в условии
+        if response_status == 200:
+            output_img = response.get('content')
+            suffix = response.get('headers').get('content-type').split('/')[-1]
+            self.images = {f'thumbnail.{suffix}': output_img}
 
-        return result
+        return self.images
+
+    async def get_async_images(self):
+        self.images = await self.get_async_thumbnail(self.thumbnail_url)
+        # self.images
+        return self.images
+
+    def get_images(self):
+        self.images = self.get_thumbnail(self.thumbnail_url)
+        return self.images
 
 
-class PersonDetail:
+class PersonDetail(PersonPreview):
     # TODO - наследовать от `PersonPreview` (если  это имеет смысл).
     """
-    person_id = ''          # Идентификатор Персоны формата `ГОД_ID`
     detail_url = ''         # Ссылка на подробную страницу Персоны
     images_url = ''         # Запрос на получение ссылок всех фото Персоны
-    detail_json = {}        # json (словарь) с подробными данными Персоны
+    person_id = ''  # Идентификатор Персоны формата `ГОД_ID`
     images = {}             # Словарь {`picture_id`: `image_raw_data`}, в котором хранятся все фото (без миниатюры).
+    detail_json = {}  # json (словарь) с подробными данными Персоны
     """
 
-    def __init__(self, person_detail_url: str, images_url: str):
+    def __init__(self, person_preview_data: dict):
         # TODO - по аналогии с `PersonPreview` можно принимать лишь превью данных, и добывать ссылку на фото уже здесь.
         """
         - При инициализации или вызове можно добавить флаги `json_data = False, img = False`. Это упрощает код,
@@ -143,16 +158,19 @@ class PersonDetail:
         :param person_detail_url: Ссылка на детальную страницу Персоны.
         :param images_url: Ссылка на запрос фотографий Персоны.
         """
-        self.images = {}
-        self.detail_url = person_detail_url
-        self.images_url = images_url
+        super().__init__(person_preview_data)
+        # self.person_id = ''  # Идентификатор Персоны формата `ГОД_ID`
+        self.detail_json = {}  # json (словарь) с подробными данными Персоны
+        self.detail_url = self.preview_json['person_preview']['_links']['self']['href']
+        self.images_url = self.preview_json['person_preview']['_links']['images']['href']
         # TODO - перехватить все статусы реквестов кроме 200-го. Вероятно проще написать универсальный класс обработки
-        self.detail_json = requests.get(person_detail_url).json()
-        self.person_id = self.detail_json['entity_id'].replace('/', '-')    # Заменяем `/` на `-` для корректного пути
 
+        # self.detail_json = requests.get(person_detail_url).json()
+        # self.person_id = self.detail_json['entity_id'].replace('/', '-')    # Заменяем `/` на `-` для корректного пути
+        '''
         # Получаем список ID и фотографии персоны
         images_json = requests.get(images_url).json()
-
+        
         try:
             # TODO - сделать проверку на пустой ответ или коды ошибок
             for item in images_json['_embedded']['images']:
@@ -165,18 +183,46 @@ class PersonDetail:
                 self.images[f"{item['picture_id']}.{suffix}"] = response.content    # Сохраняем картинку с именем
         except Exception as e:
             print(e)
+        '''
 
     def __call__(self):
         # При вызове можно сразу же и сохранять файлы, либо прописать это отдельным методом. Либо оставить как есть =)
         return self.detail_json, self.images
 
+    async def get_detail_json(self):
+        coro = await get_async_response(url=self.detail_url)
+        self.detail_json = await coro['json']
+        # self.person_id = self.detail_json['entity_id'].replace('/', '-')  # Заменяем `/` на `-` для корректного пути
+        return self.detail_json
+
+    async def get_async_images(self):
+        # Получаем список ID и фотографии персоны
+        images_json = await get_async_response(url=self.images_url)['json']
+
+        try:
+            # TODO - сделать проверку на пустой ответ или коды ошибок
+            for item in images_json['_embedded']['images']:
+                response = await get_async_response(url=item['_links']['self']['href'])
+                try:
+                    suffix = response['headers']['content-type'].split('/')[-1]  # Получаем расширение файла
+                except Exception as e:
+                    print(e)
+                    suffix = '.jpg'
+
+                self.images[f"{item['picture_id']}.{suffix}"] = response['content']  # Сохраняем картинку с именем
+        except Exception as e:
+            print(e)
+        return self.images
+
 
 class AsyncRequest:
     # TODO - дописать класс для использования асинхронных запросов вместо отдельных методов, описанных ниже.
+    '''
     request = None
     response_json = {}
     response_headers = {}
     response_contend = None
+    '''
 
     def __init__(self, url: str, method='GET',  headers=''):
         self.url = url
@@ -195,7 +241,13 @@ class AsyncRequest:
         self.response_json = self.request.json()
         self.response_contend = self.request.content()
 
-    async def get_async_json(url: str, method='GET',  headers=''):
+    async def get_request(url: str, method='GET',  headers=''):
+        """
+        DEPRICATED
+        :param method:
+        :param headers:
+        :return:
+        """
         try:
             request = await aiohttp.request(method=method, url=url, headers=headers)
             request.close()
@@ -204,12 +256,37 @@ class AsyncRequest:
         return
 
 
-async def get_async_response_json(url: str, method='GET'):
-    response_json = {}
-    try:
-        response = await aiohttp.request(method=method, url=url)
-        response_json = await response.json()
-        response.close()
-    except Exception as e:
-        print(e)
-    return response_json
+async def get_async_response(url: str, method='GET', sleep=0):
+    #response_result = {}
+    # try:
+    '''
+    response = await aiohttp.request(method=method, url=url)
+    status = response.status
+    headers = response.headers
+    data = response.json()
+    content = response.content
+    response_result = {'status': status, 'json': data, 'content': content, 'headers': headers}
+    response.close()
+    # except Exception as e:
+    #    print('HAHAH')
+    # finally:
+    return response_result
+    '''
+
+    async with aiohttp.ClientSession() as session:
+        async with session.request(method=method, url=url) as resp:
+            data = {}
+            content = None
+
+            await asyncio.sleep(sleep)
+            await resp.read()
+            if resp.content_type == 'application/json':
+                data = resp.json()
+            else:
+                content = await resp.content.read()      # .content.read() - это корутина
+
+            status = resp.status
+            headers = resp.headers
+
+            return {'status': status, 'json': data, 'content': content, 'headers': headers}
+
