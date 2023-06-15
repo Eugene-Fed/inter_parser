@@ -6,10 +6,10 @@
     },
     "request_url": "https://ws-public.interpol.int/notices/v1/",
     "nations": [],
-    "genders": [],
+    "genders": ["F"],
     "search_pages_id": [],
-    "min_age": 0,
-    "max_age": 120,
+    "min_age": 30,
+    "max_age": 30,
     "notices_limit": 160,
     "preview_only": true,
     "keywords": {

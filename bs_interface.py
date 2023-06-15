@@ -93,11 +93,16 @@ class PersonPreview:
 
     def __init__(self, person_preview_data: dict):
         self.preview_json = person_preview_data
-        self.thumbnail_url = self.preview_json['_links']['thumbnail']['href']
+        try:        # Когда начинают сыпаться ошибки сервера, к нам попадают пустые ответы
+            self.thumbnail_url = self.preview_json['_links']['thumbnail']['href']
+        except KeyError:
+            self.thumbnail_url = None
         self.images = {}
 
     async def __call__(self):
-        self.images = await self.get_async_thumbnail(self.thumbnail_url)
+        if self.thumbnail_url:
+            self.images = await self.get_async_thumbnail(self.thumbnail_url)
+
         return self.preview_json, self.images
 
     def get_thumbnail(self, images_url: str):
@@ -116,9 +121,11 @@ class PersonPreview:
         :param url:
         :return: Словарь, содержащий имя изображения и само изображение.
         """
-        if not url:
+        if not url and self.thumbnail_url:
             url = self.thumbnail_url
-        response = await get_async_response(url=url)        # Создаем футуру
+        else:
+            return {}
+        response = await get_async_response(url=url)
         response_status = response.get('status')    # Мы не можем использовать футуру напрямую в условии
         if response_status == 200:
             output_img = response.get('content')

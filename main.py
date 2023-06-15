@@ -216,6 +216,8 @@ if __name__ == '__main__':
         page_object = NoticePage(url=page_url)      # Создаем объект поисковой страницы нужного типа.
 
         print(f'Page `{page_type}` get_status: {page_object.get_status()}')
+        if page_object.get_status() != 200:
+            continue
         '''
         Использовать параметры объекта настроек нагляднее, но перехватить ошибки битого файла настроек проще
         с использованием словаря параметров: nations = settings.data.get('nations', page_object.nationalities)
