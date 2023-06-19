@@ -5,6 +5,7 @@ import json
 import itertools
 import asyncio
 import aiohttp
+import random
 from file_manager import Settings, save_file
 
 from bs_interface import NoticePage, PersonDetail, PersonPreview, get_async_response
@@ -41,7 +42,6 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
                   f'sexId={gender}&' \
                   f'ageMin={min_age}&ageMax={max_age}&' \
                   f'resultPerPage={limit}'      # &freeText={keyword} - Ключевой запрос больше не используем.
-    print(f'Request: {request}')
     '''
     response = requests.get(url=request)
     # TODO - обработать все прочие запросы. Возможно, добавить несколько попыток при получении 4** и 5** ошибок.
@@ -51,8 +51,12 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     # response = requests.get(request)
     # output_dict = response.json()
 
-    response = await get_async_response(request, sleep=1)
+    # Отправляем запросы раз в 100 мсек в течение заданного в настройках времени, чтобы снизить нагрузку на сервер
+    response = await get_async_response(request,
+                                        sleep=random.randint(1, settings.request_dist_time)*settings.request_freq)
     response_status = response.get('status')
+    print(f'Request: {request} status: {response_status}')
+
     if response_status == 200:
         # output_dict = await response.json()
         output_dict = await response.get('json')

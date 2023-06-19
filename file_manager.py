@@ -78,6 +78,8 @@ class Settings:
         self.notices_limit = self.data['notices_limit']
         self.keywords = self.data['keywords']
         self.preview_only = self.data['preview_only']
+        self.request_dist_time = self.data['request_dist_time']
+        self.request_freq = self.data['request_freq']
 
     def __call__(self, *args, **kwargs):
         return self.data

@@ -8,9 +8,11 @@
     "nations": [],
     "genders": ["F"],
     "search_pages_id": [],
-    "min_age": 30,
-    "max_age": 30,
+    "min_age": 0,
+    "max_age": 120,
     "notices_limit": 160,
+    "request_dist_time": 1200,
+    "request_freq": 0.1,
     "preview_only": true,
     "keywords": {
         "red": [],

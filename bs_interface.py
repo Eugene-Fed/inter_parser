@@ -140,7 +140,8 @@ class PersonPreview:
         return self.images
 
     def get_images(self):
-        self.images = self.get_thumbnail(self.thumbnail_url)
+        if self.thumbnail_url:
+            self.images = self.get_thumbnail(self.thumbnail_url)
         return self.images
 
 
@@ -281,11 +282,11 @@ async def get_async_response(url: str, method='GET', sleep=0):
     '''
 
     async with aiohttp.ClientSession() as session:
+        await asyncio.sleep(sleep)
         async with session.request(method=method, url=url) as resp:
             data = {}
             content = None
 
-            await asyncio.sleep(sleep)
             await resp.read()
             if resp.content_type == 'application/json':
                 data = resp.json()
