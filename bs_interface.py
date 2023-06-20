@@ -105,27 +105,32 @@ class PersonPreview:
 
         return self.preview_json, self.images
 
-    def get_thumbnail(self, images_url: str):
+    def get_thumbnail(self, url: str):
         """
         DEPRECATED
-        :param images_url:
+        :param url:
         :return:
         """
-        response = requests.get(images_url)
+        response = requests.get(url)
         suffix = response.headers['content-type'].split('/')[-1]
         return {f'thumbnail.{suffix}': response.content}
 
-    async def get_async_thumbnail(self, url='') -> dict:
+    def get_images(self):
+        if self.thumbnail_url:
+            self.images = self.get_thumbnail(self.thumbnail_url)
+        return self.images
+
+    async def get_async_thumbnail(self, url='', sleep=0) -> dict:
         """
         Отдельный метод для загрузки только Превью картинки на случай острой необходимости.
         :param url:
         :return: Словарь, содержащий имя изображения и само изображение.
         """
-        if not url and self.thumbnail_url:
+        if not url and self.thumbnail_url:      # Если `url` не передан, используем тот, что инициализирован в объекте
             url = self.thumbnail_url
-        else:
-            return {}
-        response = await get_async_response(url=url)
+        # else:
+        #    return {}
+        response = await get_async_response(url=url, sleep=sleep)
         response_status = response.get('status')    # Мы не можем использовать футуру напрямую в условии
         if response_status == 200:
             output_img = response.get('content')
@@ -134,15 +139,12 @@ class PersonPreview:
 
         return self.images
 
-    async def get_async_images(self):
-        self.images = await self.get_async_thumbnail(self.thumbnail_url)
+    async def get_async_images(self, sleep=0):
+        if self.thumbnail_url:
+            self.images = await self.get_async_thumbnail(self.thumbnail_url, sleep=sleep)
         # self.images
         return self.images
 
-    def get_images(self):
-        if self.thumbnail_url:
-            self.images = self.get_thumbnail(self.thumbnail_url)
-        return self.images
 
 
 class PersonDetail(PersonPreview):
@@ -264,22 +266,15 @@ class AsyncRequest:
         return
 
 
-async def get_async_response(url: str, method='GET', sleep=0):
-    #response_result = {}
-    # try:
-    '''
-    response = await aiohttp.request(method=method, url=url)
-    status = response.status
-    headers = response.headers
-    data = response.json()
-    content = response.content
-    response_result = {'status': status, 'json': data, 'content': content, 'headers': headers}
-    response.close()
-    # except Exception as e:
-    #    print('HAHAH')
-    # finally:
-    return response_result
-    '''
+async def get_async_response(url: str, method='GET', sleep=0) -> dict:
+    """
+    Асинхронный запрос с форматированным выводом
+    :param url: Строка запроса
+    :param method: Метод на выбор [`GET`, `POST` и т.п.]
+    :param sleep: Время ожидания перед отправкой запроса. Используется для распределения запросов по времени.
+    :return: {'status': status, 'json': data, 'content': content, 'headers': headers} - возвращаем `json` или `content`
+    в зависимости от типа ответа. Если заполнено одно, значит другое поле будет возвращено пустым.
+    """
 
     async with aiohttp.ClientSession() as session:
         await asyncio.sleep(sleep)
