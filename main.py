@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 async def get_notices(url='', notice_type='', nation='', gender='', keyword='', request='', limit=0,
-                min_age=0, max_age=0) -> dict:
+                      min_age=0, max_age=0) -> dict:
     """
     Формирует словарь Превьюшек с базовыми данными для всех Персон, подходящих под фильтр.
 
@@ -21,12 +21,13 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     :param notice_type: `red` или `yellow`
     :param nation: ID Гражданства. Доступный список получаем непосредственно из HTML страницы.
     :param gender: ID Пола. Доступный список получаем непосредственно из HTML страницы.
-    :param age: DEPRECATED. Возраст для фильтрации. Используем одно значения для минимального и максимального значения.
     :param keyword: DEPRECATED. Уточняющее слово, которое позволяет сузить выборку.
     :param request: DEPRECATED. Готовый запрос с фильтрами и указанием страницы выдачи.
     :param limit: Количество результатов выдачи на одну страницу.
-    :return: Ключ - `entity_id`, Значение - Словарь (json-объект) с краткими сведениями о найденной персоне.
-    В нем хранится ссылка на фото и url запроса детальной информации.
+    :param min_age: Минимальный возраст выборки.
+    :param max_age: Максимальный возраст выборки.
+    :return: {'2023/4812':
+    {'person_preview': 'person preview json', 'person_nation': 'nation id', 'notice_type': 'red'}}
     """
     min_age = int(min(min_age, max_age))
     max_age = int(max(min_age, max_age))
@@ -111,51 +112,27 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     return notices  # Пустой словарь тоже обработается без ошибок как в рекурсии, так и в вызывающем коде
 
 
-async def get_person_data(page_type, person_id, person_data):
+async def get_person_data(person_preview_json) -> PersonPreview:
     """
     Получаем превью/детальные данные персоны, а также данные всех фотографий.
-    :param page_type: ['red', 'yellow'] - в зависимости от типа страниц сохраняем результаты в свою папку.
-    :param person_id: ID персоны по которому создается папка для выгрузки результатов.
-    :param person_data: Словарь (json объект), который содержит превью данных персоны.
-    :return: Объект персоны, содержащий уже загруженные фото и детальные данные (при необходимости).
+    :param person_preview_json: Словарь (json объект), который содержит превью данных персоны.
+    :return: Объект, содержащий уже загруженные данные и изображения.
     """
     # TODO - передавать `settings` параметром, вместо использования глобала
-    # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
-    person_result_path = Path(settings.result_dir,
-                              page_type,
-                              page_object.nationalities[person_data['person_nation']],
-                              person_id.replace('/', '-'))
-
     if settings.preview_only:
-        person = PersonPreview(person_preview_data=person_data['person_preview'])
+        person = PersonPreview(person_preview_data=person_preview_json)
 
     else:
-        # person_detail_url = notice_preview_json['_links']['self']['href']
-        # images_url = notice_preview_json['_links']['images']['href']
-        # person = PersonDetail(person_detail_url=person_detail_url, images_url=images_url)
-        # person = PersonDetail(person_detail_url=person_data['person_preview']['_links']['self']['href'],
-        #                      images_url=person_data['person_preview']['_links']['images']['href'])
-        person = PersonDetail(person_preview_data=person_data['person_preview'])
+        person = PersonDetail(person_preview_data=person_preview_json)
         person_detail = await person.get_detail_json()
-
-    if hasattr(person, 'detail_json'):
-        save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person_detail)
-    else:
-        save_file(file_path=Path(person_result_path, 'preview.json'), file_data=person.preview_json)
 
     # Отправляем запросы раз в 100 мсек в течение заданного в настройках времени, чтобы снизить нагрузку на сервер
     # response = await get_async_response(request,
     #                                     sleep=random.randint(1, settings.request_dist_time) * settings.request_freq)
     # person_images = person.get_images()     # сохраняем картинки последовательно, иначе сервер выдает 4хх ошибки
-    person_images = await person.get_async_images(sleep=random.randint(1, settings.request_dist_time*10)
-                                                        * settings.request_freq)
-    # person_images = person.get_async_images() # создаем футуру - объект корутины. футура требует ожидания
-    # Выгружаем все фото в папку Персоны
-    # for image_name, image_raw in person.images.items():
-    # _ = await person.get_async_images()
-    # for image_name, image_raw in person.images.items():
-    for image_name, image_raw in person_images.items():
-        save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
+    _ = await person.get_async_images(sleep=random.randint(1, settings.request_dist_time/settings.request_freq)
+                                        * settings.request_freq)
+    return person
 
 
 async def async_filters_loop(url, page_type, notices_limit, min_age, max_age, nations, genders) -> None:
@@ -176,22 +153,36 @@ async def async_filters_loop(url, page_type, notices_limit, min_age, max_age, na
                                                          nation=nation, gender=gender,
                                                          limit=notices_limit,
                                                          min_age=min_age, max_age=max_age)) for
-             nation, gender in itertools.product(nations, genders)]
+                         nation, gender in itertools.product(nations, genders)]
 
     done_tasks, _ = await asyncio.wait(main_search_tasks)
 
     for task in done_tasks:
         result_notices.update(task.result())   # Асинхронно получаем общий словарь с превью по всем возможным фильтрам
 
-    person_tasks = [asyncio.create_task(get_person_data(page_type=page_type,
-                                                        person_id=notice_id, person_data=notice_data)) for
-               notice_id, notice_data in result_notices.items()]
+    # Генерим список задач на основе данных по всем полученным персонам
+    person_tasks = [asyncio.create_task(get_person_data(person_preview_json=notice_data)) for
+                    notice_data in result_notices.values()]
     # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
 
     done_person_task, _ = await asyncio.wait(person_tasks)
     for task in done_person_task:
-        # save data
-        pass
+        current_person = task.result()
+        # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
+        person_result_path = Path(settings.result_dir,
+                                  current_person.notice_type,
+                                  page_object.nationalities[current_person.nation],
+                                  current_person.preview_json['entity_id'].replace('/', '-'))
+        save_file(file_path=Path(person_result_path, 'preview.json'), file_data=current_person.preview_json)
+        '''
+        if hasattr(current_person, 'detail_json'):
+            save_file(file_path=Path(person_result_path, 'detail.json'), file_data=person_detail)
+        else:
+            save_file(file_path=Path(person_result_path, 'preview.json'), file_data=current_person.preview_json)
+        '''
+        # Выгружаем все фото в папку Персоны
+        for image_name, image_raw in current_person.images.items():
+            save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
 
 
 def get_age_ranges(min_age: int, max_age: int) -> list:

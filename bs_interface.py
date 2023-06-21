@@ -92,7 +92,9 @@ class PersonPreview:
     """
 
     def __init__(self, person_preview_data: dict):
-        self.preview_json = person_preview_data
+        self.preview_json = person_preview_data['person_preview']
+        self.nation = person_preview_data['person_nation']
+        self.notice_type = person_preview_data['notice_type']
         try:        # Когда начинают сыпаться ошибки сервера, к нам попадают пустые ответы
             self.thumbnail_url = self.preview_json['_links']['thumbnail']['href']
         except KeyError:
@@ -100,10 +102,8 @@ class PersonPreview:
         self.images = {}
 
     async def __call__(self):
-        if self.thumbnail_url:
-            self.images = await self.get_async_thumbnail(self.thumbnail_url)
-
-        return self.preview_json, self.images
+        images = await self.get_async_images()
+        return self.preview_json, images
 
     def get_thumbnail(self, url: str):
         """
@@ -120,31 +120,35 @@ class PersonPreview:
             self.images = self.get_thumbnail(self.thumbnail_url)
         return self.images
 
-    async def get_async_thumbnail(self, url='', sleep=0) -> dict:
+    async def get_async_thumbnail(self, sleep=0) -> dict:
         """
         Отдельный метод для загрузки только Превью картинки на случай острой необходимости.
-        :param url:
+        :param sleep: Время ожидания перед отправкой запроса (нужно для распределения асинхронных запросов по времени).
         :return: Словарь, содержащий имя изображения и само изображение.
         """
-        if not url and self.thumbnail_url:      # Если `url` не передан, используем тот, что инициализирован в объекте
-            url = self.thumbnail_url
-        # else:
-        #    return {}
-        response = await get_async_response(url=url, sleep=sleep)
+        response = await get_async_response(url=self.thumbnail_url, sleep=sleep)
         response_status = response.get('status')    # Мы не можем использовать футуру напрямую в условии
+        thumbnail = {}
         if response_status == 200:
-            output_img = response.get('content')
+            image_raw = response.get('content')
             suffix = response.get('headers').get('content-type').split('/')[-1]
-            self.images = {f'thumbnail.{suffix}': output_img}
+            thumbnail[f'thumbnail.{suffix}'] = image_raw
+            self.images.update(thumbnail)
 
-        return self.images
+        return thumbnail
 
-    async def get_async_images(self, sleep=0):
+    async def get_async_images(self, url='', sleep=0):
+        tasks = []
         if self.thumbnail_url:
-            self.images = await self.get_async_thumbnail(self.thumbnail_url, sleep=sleep)
-        # self.images
-        return self.images
-
+            tasks.append(asyncio.create_task(self.get_async_thumbnail(sleep=sleep)))
+        if url:
+            pass
+        else:
+            pass
+        if tasks:
+            done, _ = await asyncio.wait(tasks)
+            for future in done:
+                return future.result()
 
 
 class PersonDetail(PersonPreview):
