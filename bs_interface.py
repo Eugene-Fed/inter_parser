@@ -74,7 +74,8 @@ class NoticePage:
                 self.genders[radio.attrs['value']] = page.find('label', attrs={'for': radio.attrs['id']}).string
         return self.genders
 
-    def get_total(self, page: BeautifulSoup) -> int:
+    @staticmethod
+    def get_total(page: BeautifulSoup) -> int:
         """
         Получаем общее количество персон для заданной страницы. Забираем это значения непосредственно из HTML.
         # TODO - в текущей реализации всегда выдает нулевое значение.
@@ -105,7 +106,8 @@ class PersonPreview:
         images = await self.get_async_images()
         return self.preview_json, images
 
-    def get_thumbnail(self, url: str):
+    @staticmethod
+    def get_thumbnail(url: str):
         """
         DEPRECATED
         :param url:
@@ -231,12 +233,12 @@ class PersonDetail(PersonPreview):
 
 class AsyncRequest:
     # TODO - дописать класс для использования асинхронных запросов вместо отдельных методов, описанных ниже.
-    '''
+    """
     request = None
     response_json = {}
     response_headers = {}
     response_contend = None
-    '''
+    """
 
     def __init__(self, url: str, method='GET',  headers=''):
         self.url = url
