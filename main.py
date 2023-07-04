@@ -65,13 +65,6 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
             Для этого разбиваем возрастной диапазон на 2 половины и рекурсивно вызываем метод по двум новым диапазонам.
             """
             [lower_min_age, lower_max_age], [upper_min_age, upper_max_age] = get_age_ranges(min_age, max_age)
-            '''
-            # Рекурсивная часть оригинального синхронного кода.
-            notices.update(get_notices(url=url, notice_type=notice_type, nation=nation, gender=gender, keyword=keyword,
-                                       limit=limit, min_age=lower_min_age, max_age=lower_max_age))
-            notices.update(get_notices(url=url, notice_type=notice_type, nation=nation, gender=gender, keyword=keyword,
-                                       limit=limit, min_age=upper_min_age, max_age=upper_max_age))
-            '''
 
             # Асинхронный вариант рекурсивного обхода
             notice_lower_age = {
@@ -91,8 +84,13 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
             done, _ = await asyncio.wait(tasks)
 
             # alt
-            # tasks = [get_notices(**notice_lower_age), get_notices(**notice_upper_age)]
-            # done = await asyncio.gather(*tasks)
+            '''
+            coros = [get_notices(**notice_lower_age), get_notices(**notice_upper_age)]
+            results = await asyncio.gather(*coros)
+            # async for result in asyncio.gather(coros, return_exceptions=False):
+            for result in results:
+                notices.update(result)
+            '''
 
             for future in done:
                 notices.update(future.result())
@@ -169,8 +167,11 @@ async def main_coro(url, page_type, notices_limit, min_age, max_age, nations, ge
                                                          limit=notices_limit,
                                                          min_age=min_age, max_age=max_age)) for
                          nation, gender in itertools.product(nations, genders)]
+    '''main_search_coros = [get_notices(nation=nation, 
+                                     gender=gender) for nation, gender in itertools.product(nations, genders)]'''
 
     done_search_tasks, _ = await asyncio.wait(main_search_tasks)
+    # done_search_coros = await asyncio.gather(*main_search_coros, return_exceptions=False)
 
     '''Собираем базу всех возможных превью персоны прежде, чем обрабатывать ее данные. Это позволит избавиться
     от дублирующих запросов, т.к. некоторые люди попадают под разные фильтры и могут быть продублированы.
