@@ -128,7 +128,8 @@ class PersonPreview:
         :param sleep: Время ожидания перед отправкой запроса (нужно для распределения асинхронных запросов по времени).
         :return: Словарь, содержащий имя изображения и само изображение.
         """
-        response = await get_async_response(url=self.thumbnail_url, sleep=sleep)
+        response = await asyncio.gather(get_async_response(url=self.thumbnail_url, sleep=sleep))
+        response = response[0]
         response_status = response.get('status')    # Мы не можем использовать футуру напрямую в условии
         thumbnail = {}
         if response_status == 200:
@@ -140,17 +141,24 @@ class PersonPreview:
         return thumbnail
 
     async def get_async_images(self, url='', sleep=0):
-        tasks = []
+        # tasks = []
+        coros = []
         if self.thumbnail_url:
-            tasks.append(asyncio.create_task(self.get_async_thumbnail(sleep=sleep)))
+            # tasks.append(asyncio.create_task(self.get_async_thumbnail(sleep=sleep)))
+            # thumbnail = await asyncio.gather(self.get_async_thumbnail(sleep=sleep))
+            # coros.append(thumbnail)
+            coros.append(self.get_async_thumbnail(sleep=sleep))
         if url:
             pass
         else:
             pass
-        if tasks:
+        '''if tasks:
             done, _ = await asyncio.wait(tasks)
             for future in done:
-                return future.result()
+                return future.result()'''
+        if coros:
+            result = await asyncio.gather(*coros)
+            return result
 
 
 class PersonDetail(PersonPreview):

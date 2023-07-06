@@ -128,8 +128,12 @@ async def get_person_data(person_preview_json) -> PersonPreview:
     # response = await get_async_response(request,
     #                                     sleep=random.randint(1, settings.request_dist_time) * settings.request_freq)
     # person_images = person.get_images()     # сохраняем картинки последовательно, иначе сервер выдает 4хх ошибки
-    _ = await person.get_async_images(sleep=random.randint(1, settings.request_dist_time/settings.request_freq)
-                                        * settings.request_freq)
+    '''_ = await person.get_async_images(sleep=random.randint(1, settings.request_dist_time/settings.request_freq)
+                                        * settings.request_freq)'''
+    _ = await asyncio.gather(person.get_async_images(sleep=random.randint(1,
+                                                                          settings.request_dist_time
+                                                                          / settings.request_freq)
+                                                           * settings.request_freq))
     return person
 
 
@@ -162,36 +166,51 @@ async def main_coro(url, page_type, notices_limit, min_age, max_age, nations, ge
     """
     result_notices = {}
     # Генерируем список `задач`, на основе всех доступных вариантов фильтров
-    main_search_tasks = [asyncio.create_task(get_notices(url=url, notice_type=page_type,
+    '''main_search_tasks = [asyncio.create_task(get_notices(url=url, notice_type=page_type,
                                                          nation=nation, gender=gender,
                                                          limit=notices_limit,
                                                          min_age=min_age, max_age=max_age)) for
-                         nation, gender in itertools.product(nations, genders)]
-    '''main_search_coros = [get_notices(nation=nation, 
-                                     gender=gender) for nation, gender in itertools.product(nations, genders)]'''
+                         nation, gender in itertools.product(nations, genders)]'''
+    main_search_coros = [get_notices(url=url, notice_type=page_type,
+                                     nation=nation, gender=gender,
+                                     limit=notices_limit,
+                                     min_age=min_age,
+                                     max_age=max_age) for nation, gender in itertools.product(nations, genders)]
 
-    done_search_tasks, _ = await asyncio.wait(main_search_tasks)
-    # done_search_coros = await asyncio.gather(*main_search_coros, return_exceptions=False)
+    '''done_search_tasks, _ = await asyncio.wait(main_search_tasks)'''
+    search_results = await asyncio.gather(*main_search_coros, return_exceptions=False)
 
     '''Собираем базу всех возможных превью персоны прежде, чем обрабатывать ее данные. Это позволит избавиться
     от дублирующих запросов, т.к. некоторые люди попадают под разные фильтры и могут быть продублированы.
     Предварительный сбор словаря ключом которого является ID персоны - избавит нас от лишних дублирующих запросов.'''
-    for task in done_search_tasks:
-        result_notices.update(task.result())   # Асинхронно получаем общий словарь с превью по всем возможным фильтрам
+    '''for task in done_search_tasks:
+        result_notices.update(task.result())   # Асинхронно получаем общий словарь с превью по всем возможным фильтрам'''
+    for result in search_results:
+        result_notices.update(result)
 
     # Генерим список задач на основе данных по всем полученным персонам
-    person_tasks = [asyncio.create_task(get_person_data(person_preview_json=notice_data)) for
+    '''person_tasks = [asyncio.create_task(get_person_data(person_preview_json=notice_data)) for
+                    notice_data in result_notices.values()]'''
+    person_coros = [get_person_data(person_preview_json=notice_data) for
                     notice_data in result_notices.values()]
     # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
 
-    done_person_task, _ = await asyncio.wait(person_tasks)
-    '''
-    for task in person_tasks:
-        await task
-        if task.done():
-            current_person = task.result()
-    '''
+    '''done_person_task, _ = await asyncio.wait(person_tasks)'''
+    person_results = await asyncio.gather(*person_coros, return_exceptions=False)
 
+    for person in person_results:
+        # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
+        person_result_path = Path(settings.result_dir,
+                                  person.notice_type,
+                                  page_object.nationalities[person.nation],
+                                  person.preview_json['entity_id'].replace('/', '-'))
+        save_file(file_path=Path(person_result_path, 'preview.json'), file_data=person.preview_json)
+
+        # Выгружаем все фото в папку Персоны
+        for image_name, image_raw in person.images.items():
+            save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
+
+    """
     for task in done_person_task:
         current_person = task.result()
         # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
@@ -209,6 +228,7 @@ async def main_coro(url, page_type, notices_limit, min_age, max_age, nations, ge
         # Выгружаем все фото в папку Персоны
         for image_name, image_raw in current_person.images.items():
             save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
+    """
 
 
 if __name__ == '__main__':
