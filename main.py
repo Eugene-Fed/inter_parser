@@ -7,13 +7,14 @@ import asyncio
 import aiohttp
 import random
 from file_manager import Settings, save_file
+from datetime import datetime
 
 from bs_interface import NoticePage, PersonDetail, PersonPreview, get_async_response
 from pathlib import Path
 
 
 async def get_notices(url='', notice_type='', nation='', gender='', keyword='', request='', limit=0,
-                      min_age=0, max_age=0) -> dict:
+                      min_age=0, max_age=0, sleep=0) -> dict:
     """
     Формирует словарь Превьюшек с базовыми данными для всех Персон, подходящих под фильтр.
 
@@ -26,6 +27,7 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     :param limit: Количество результатов выдачи на одну страницу.
     :param min_age: Минимальный возраст выборки.
     :param max_age: Максимальный возраст выборки.
+    :param sleep:
     :return: {'2023/4812':
     {'person_preview': 'person preview json', 'person_nation': 'nation id', 'notice_type': 'red'}}
     """
@@ -47,14 +49,21 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     '''
 
     # Отправляем запросы раз в 100 мсек в течение заданного в настройках времени, чтобы снизить нагрузку на сервер
+    # где `request_freq` = 0.2 - каждые 200 мсек, `request_dist_time` = 30 - в течение 30 секунд.
+    # Чтобы два рекурсивных запроса происходили не одновременно - добавляем для одного из них доп. задержку `sleep`.
+    start_time = datetime.now()
     response = await get_async_response(request,
                                         sleep=random.randint(1, settings.request_dist_time/settings.request_freq)
-                                              * settings.request_freq)
+                                              * settings.request_freq + sleep)
     response_status = response.get('status')
-    print(f'Request: {request} status: {response_status}')
+    # exec_time = response.get('time')
+    exec_time = datetime.now() - start_time
+    exec_min = exec_time.seconds // 60
+    exec_sec = exec_time.seconds % 60
+    print(f'Request: {request} status: {response_status}.\nExecution time: {exec_min}:{exec_sec:02}', flush=True)
 
     if response_status == 200:
-        output_dict = await response.get('json')
+        output_dict = response.get('json')
 
     total = int(output_dict.get('total', 0))    # Если `total` == 0, значит результат запроса пуст
     if output_dict and total > 0:  # Проверяем что результат не пуст и `total` больше `0`
@@ -78,22 +87,24 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
                 'max_age': lower_max_age
             }
             notice_upper_age = notice_lower_age.copy()
-            notice_upper_age.update({'min_age': upper_min_age, 'max_age': upper_max_age})
+            # Чтобы два новых запроса происходили не одновременно - добавляем для второго доп. задержку `sleep`.
+            notice_upper_age.update({'min_age': upper_min_age, 'max_age': upper_max_age,
+                                     'sleep': settings.request_freq/2})
             tasks = [asyncio.create_task(get_notices(**notice_lower_age)),
                      asyncio.create_task(get_notices(**notice_upper_age))]
             done, _ = await asyncio.wait(tasks)
 
-            # alt
+            for future in done:
+                notices.update(future.result())
+
             '''
+            # ALT
             coros = [get_notices(**notice_lower_age), get_notices(**notice_upper_age)]
             results = await asyncio.gather(*coros)
             # async for result in asyncio.gather(coros, return_exceptions=False):
             for result in results:
                 notices.update(result)
             '''
-
-            for future in done:
-                notices.update(future.result())
 
         else:
             """
@@ -110,10 +121,11 @@ async def get_notices(url='', notice_type='', nation='', gender='', keyword='', 
     return notices  # Пустой словарь тоже обработается без ошибок как в рекурсии, так и в вызывающем коде
 
 
-async def get_person_data(person_preview_json) -> PersonPreview:
+async def get_person_data(person_preview_json, persons_count: int) -> PersonPreview:
     """
     Получаем превью/детальные данные персоны, а также данные всех фотографий.
     :param person_preview_json: Словарь (json объект), который содержит превью данных персоны.
+    :param persons_count:
     :return: Объект, содержащий уже загруженные данные и изображения.
     """
     # TODO - передавать `settings` параметром, вместо использования глобала
@@ -130,10 +142,9 @@ async def get_person_data(person_preview_json) -> PersonPreview:
     # person_images = person.get_images()     # сохраняем картинки последовательно, иначе сервер выдает 4хх ошибки
     '''_ = await person.get_async_images(sleep=random.randint(1, settings.request_dist_time/settings.request_freq)
                                         * settings.request_freq)'''
-    _ = await asyncio.gather(person.get_async_images(sleep=random.randint(1,
-                                                                          settings.request_dist_time
-                                                                          / settings.request_freq)
-                                                           * settings.request_freq))
+    sleep = random.randint(1, persons_count) * settings.request_freq
+    _ = await asyncio.gather(person.get_async_images(sleep=sleep))
+    # await asyncio.wait(asyncio.create_task(person.get_async_images(sleep=sleep)))
     return person
 
 
@@ -187,11 +198,12 @@ async def main_coro(url, page_type, notices_limit, min_age, max_age, nations, ge
         result_notices.update(task.result())   # Асинхронно получаем общий словарь с превью по всем возможным фильтрам'''
     for result in search_results:
         result_notices.update(result)
+    # print(result_notices)
 
     # Генерим список задач на основе данных по всем полученным персонам
     '''person_tasks = [asyncio.create_task(get_person_data(person_preview_json=notice_data)) for
                     notice_data in result_notices.values()]'''
-    person_coros = [get_person_data(person_preview_json=notice_data) for
+    person_coros = [get_person_data(person_preview_json=notice_data, persons_count=len(result_notices)) for
                     notice_data in result_notices.values()]
     # Теперь проходим по созданному словарю, забираем айдишники каждой Персоны и содержимое его Превью
 
@@ -200,6 +212,7 @@ async def main_coro(url, page_type, notices_limit, min_age, max_age, nations, ge
 
     for person in person_results:
         # Генерим ссылку для выгрузки данных формата 'result/red/Zimbabwe/1990-8402/'. Имя файла добавим позже.
+        # try:
         person_result_path = Path(settings.result_dir,
                                   person.notice_type,
                                   page_object.nationalities[person.nation],
@@ -209,6 +222,8 @@ async def main_coro(url, page_type, notices_limit, min_age, max_age, nations, ge
         # Выгружаем все фото в папку Персоны
         for image_name, image_raw in person.images.items():
             save_file(file_path=Path(person_result_path, image_name), file_data=image_raw)
+        # except Exception as e:
+        #    print(e)
 
     """
     for task in done_person_task:
@@ -239,6 +254,7 @@ if __name__ == '__main__':
           f"Максимальный возраст: {settings.max_age}\n"
           f"Только Превью: {settings.preview_only}")
 
+    start_time = datetime.now()
     for page_type, page_url in settings.search_pages_urls.items():
         """
         Главный цикл, который проходит по списку ключей поисковых страниц: `red`, `yellow`.
@@ -271,3 +287,8 @@ if __name__ == '__main__':
         asyncio.run(main=main_coro(url=settings.request_url, page_type=page_type,
                                    notices_limit=settings.notices_limit, min_age=settings.min_age,
                                    max_age=settings.max_age, nations=nations, genders=genders))
+
+    exec_time = datetime.now() - start_time
+    exec_min = exec_time.seconds // 60
+    exec_sec = exec_time.seconds % 60
+    print(f'Total execution time: {exec_min}:{exec_sec:02}')

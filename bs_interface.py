@@ -4,6 +4,7 @@ import requests
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 
 class NoticePage:
@@ -157,7 +158,14 @@ class PersonPreview:
             for future in done:
                 return future.result()'''
         if coros:
+            start_time = datetime.now()
             result = await asyncio.gather(*coros)
+
+            exec_time = datetime.now() - start_time
+            exec_min = exec_time.seconds // 60
+            exec_sec = exec_time.seconds % 60
+            print(f'Image download time: {exec_time}', flush=True)
+
             return result
 
 
@@ -292,18 +300,43 @@ async def get_async_response(url: str, method='GET', sleep=0) -> dict:
 
     async with aiohttp.ClientSession() as session:
         await asyncio.sleep(sleep)
+        start_datetime = datetime.now()
         async with session.request(method=method, url=url) as resp:
             data = {}
             content = None
 
-            await resp.read()
+            # await resp.read()
             if resp.content_type == 'application/json':
-                data = resp.json()
+                data = await resp.json()
             else:
-                content = await resp.content.read()      # .content.read() - это корутина
+                # content = await resp.content.read()      # .content.read() - это корутина
+                content = await resp.read()
 
+            exec_time = datetime.now() - start_datetime
             status = resp.status
             headers = resp.headers
 
-            return {'status': status, 'json': data, 'content': content, 'headers': headers}
+            return {'status': status, 'json': data, 'content': content, 'headers': headers, 'time': exec_time}
 
+
+# ---------------------- НЕ ИСПОЛЬЗУЕЮТСЯ ----------------------
+async def get_json_response(url: str, method='GET', sleep=0) -> dict | None:
+    async with aiohttp.ClientSession() as session:
+        await asyncio.sleep(sleep)
+        async with session.request(method=method, url=url) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            else:
+                raise Exception(f'HTTP Exception. Status: {resp.status}')
+
+
+async def get_content_response(url: str, method='GET', sleep=0):
+    async with aiohttp.ClientSession() as session:
+        await asyncio.sleep(sleep)
+        async with session.request(method=method, url=url) as resp:
+            if resp.status == 200:
+                return await resp.read()
+            else:
+                raise Exception(f'HTTP Exception. Status: {resp.status}')
+
+# ---------------------- НЕ ИСПОЛЬЗУЕЮТСЯ ----------------------

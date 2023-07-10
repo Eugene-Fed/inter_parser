@@ -144,7 +144,7 @@ def save_file(file_path: Path, file_data=None) -> None:
         with file_path.open('wb') as fp:
             fp.write(file_data)
 
-    print(f'File `{str(file_path)}` saved.')
+    print(f'File `{str(file_path)}` saved.', flush=True)
     pass
 
 
