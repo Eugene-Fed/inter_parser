@@ -134,7 +134,7 @@ async def get_person_data(person_preview_json, persons_count: int) -> PersonPrev
 
     else:
         person = PersonDetail(person_preview_data=person_preview_json)
-        person_detail = await person.get_detail_json()
+        _ = await asyncio.gather(person.get_detail_json())
 
     # Отправляем запросы раз в 100 мсек в течение заданного в настройках времени, чтобы снизить нагрузку на сервер
     # response = await get_async_response(request,
@@ -217,7 +217,13 @@ async def main_coro(url, page_type, notices_limit, min_age, max_age, nations, ge
                                   person.notice_type,
                                   page_object.nationalities[person.nation],
                                   person.preview_json['entity_id'].replace('/', '-'))
-        save_file(file_path=Path(person_result_path, 'preview.json'), file_data=person.preview_json)
+        if hasattr(person, 'detail_json'):
+            result_name = 'detail.json'
+            result_json = person.detail_json
+        else:
+            result_name = 'preview.json'
+            result_json = person.preview_json
+        save_file(file_path=Path(person_result_path, result_name), file_data=result_json)
 
         # Выгружаем все фото в папку Персоны
         for image_name, image_raw in person.images.items():

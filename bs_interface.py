@@ -104,7 +104,7 @@ class PersonPreview:
         self.images = {}
 
     async def __call__(self):
-        images = await self.get_async_images()
+        images = await self.get_async_thumbnail()
         return self.preview_json, images
 
     @staticmethod
@@ -130,7 +130,7 @@ class PersonPreview:
         :return: Словарь, содержащий имя изображения и само изображение.
         """
         response = await asyncio.gather(get_async_response(url=self.thumbnail_url, sleep=sleep))
-        response = response[0]
+        response = response[0]      # Переопределяем `response`, чтобы каждый раз не обращаться к его единств. элементу.
         response_status = response.get('status')    # Мы не можем использовать футуру напрямую в условии
         thumbnail = {}
         if response_status == 200:
@@ -166,11 +166,10 @@ class PersonPreview:
             exec_sec = exec_time.seconds % 60
             print(f'Image download time: {exec_time}', flush=True)
 
-            return result
+            return self.images
 
 
 class PersonDetail(PersonPreview):
-    # TODO - наследовать от `PersonPreview` (если  это имеет смысл).
     """
     detail_url = ''         # Ссылка на подробную страницу Персоны
     images_url = ''         # Запрос на получение ссылок всех фото Персоны
@@ -197,8 +196,6 @@ class PersonDetail(PersonPreview):
         self.images_url = self.preview_json['person_preview']['_links']['images']['href']
         # TODO - перехватить все статусы реквестов кроме 200-го. Вероятно проще написать универсальный класс обработки
 
-        # self.detail_json = requests.get(person_detail_url).json()
-        # self.person_id = self.detail_json['entity_id'].replace('/', '-')    # Заменяем `/` на `-` для корректного пути
         '''
         # Получаем список ID и фотографии персоны
         images_json = requests.get(images_url).json()
@@ -217,20 +214,47 @@ class PersonDetail(PersonPreview):
             print(e)
         '''
 
-    def __call__(self):
+    async def __call__(self):
         # При вызове можно сразу же и сохранять файлы, либо прописать это отдельным методом. Либо оставить как есть =)
-        return self.detail_json, self.images
+        images = await self.get_async_images()
+        return self.detail_json, images
 
-    async def get_detail_json(self):
+    async def get_detail_json(self, sleep=0) -> dict:
+        """
+
+        :return:
+        """
+        '''
         coro = await get_async_response(url=self.detail_url)
         self.detail_json = await coro['json']
         # self.person_id = self.detail_json['entity_id'].replace('/', '-')  # Заменяем `/` на `-` для корректного пути
+        '''
+        if not self.detail_json:
+            response = await asyncio.gather(get_async_response(url=self.detail_url, sleep=sleep))
+            response = response[0]
+            response_status = response.get('status')
+            if response_status == 200 and response.get('json', None):
+                self.detail_json = response['json']
         return self.detail_json
 
     async def get_async_images(self):
         # Получаем список ID и фотографии персоны
-        images_json = await get_async_response(url=self.images_url)['json']
+        response = await asyncio.gather(get_async_response(url=self.images_url))
+        images_json = response[0].get('json', None)
+        if images_json and not self.images:
+            coros = [get_async_response(url=item['_links']['self']['href']) for
+                     item in images_json['_embedded']['images']]
+            images = await asyncio.gather(*coros)
+            for item in images:
+                try:
+                    suffix = item['headers']['content-type'].split('/')[-1]  # Получаем расширение файла
+                except Exception as e:
+                    print(e)
+                    suffix = '.jpg'
+                self.images[f"{item['content_id']}.{suffix}"] = item['content']  # Сохраняем картинку с именем
 
+        '''
+        # Старая синхронная версия кода
         try:
             # TODO - сделать проверку на пустой ответ или коды ошибок
             for item in images_json['_embedded']['images']:
@@ -244,6 +268,7 @@ class PersonDetail(PersonPreview):
                 self.images[f"{item['picture_id']}.{suffix}"] = response['content']  # Сохраняем картинку с именем
         except Exception as e:
             print(e)
+        '''
         return self.images
 
 
@@ -316,7 +341,8 @@ async def get_async_response(url: str, method='GET', sleep=0) -> dict:
             status = resp.status
             headers = resp.headers
 
-            return {'status': status, 'json': data, 'content': content, 'headers': headers, 'time': exec_time}
+            return {'status': status, 'json': data, 'content': content, 'headers': headers,
+                    'time': exec_time, 'content_id': url.split('/')[-1]}
 
 
 # ---------------------- НЕ ИСПОЛЬЗУЕЮТСЯ ----------------------
